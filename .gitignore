@@ -1,0 +1,15 @@
+# generated data (re-create with: python -m app.data_fetch all)
+data/*
+!data/.gitkeep
+
+# secrets
+.env
+
+# python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# node
+node_modules/
+dist/
