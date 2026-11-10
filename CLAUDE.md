@@ -58,7 +58,7 @@ mirage/
 - Bounding box (Dubai urban core): lat 25.03–25.30, lon 55.10–55.42.
 - Grid: about 200 m cells (roughly 150 × 160). Keep it configurable.
 - Replay window: 16 April 2024, 00:00–23:00 Gulf Standard Time (UTC+4), hourly.
-- "T–0" for the story is the hour of peak modelled flooding; compute it from the model rather than hard-coding 14:20.
+- "T–0" for the story is the hour of heaviest recorded rain (area mean), limited to hours that leave room for T–6 h and T+2 h inside the replay window; compute it from the data rather than hard-coding 14:20. (Changed in Phase 2: peak modelled flooding falls at 20:00 and stays flat for hours, which gave no usable story window. See PROJECT_LOG.md.)
 - Focus districts for labels and policies: Al Barsha (~25.11, 55.20), Al Quoz (~25.14, 55.24), Business Bay (~25.185, 55.27). Treat coordinates as approximate.
 
 ## The four engines — how to implement them simply

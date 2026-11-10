@@ -70,6 +70,17 @@ class HistoricalRainSource:
         return blurred * error_field(blurred.shape, config.FORECAST_NOISE_PER_LEAD * lead, rng)
 
 
+def story_zero_hour(source: HistoricalRainSource) -> int:
+    """Story "T-0": the hour with the heaviest recorded rain, averaged over the area.
+
+    Computed from the record, never hard-coded. Restricted to hours that leave
+    room for the T-6 h lead-in and the T+2 h tail inside the replay window.
+    """
+    first, last = config.STORY_HOURS_BEFORE, source.hours - 1 - config.STORY_HOURS_AFTER
+    means = [float(source.truth(hour).mean()) for hour in range(first, last + 1)]
+    return first + int(np.argmax(means))
+
+
 def load_rain_source() -> HistoricalRainSource:
     """The cached record for the replay day, with RAIN_SCALE applied."""
     return HistoricalRainSource(np.load(config.RAIN_TRUTH_PATH), scale=config.RAIN_SCALE)

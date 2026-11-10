@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from app import config
-from app.sky import HistoricalRainSource, gaussian_blur
+from app.sky import HistoricalRainSource, gaussian_blur, story_zero_hour
 
 
 def storm(hours: int = 12, shape: tuple[int, int] = (30, 40)) -> np.ndarray:
@@ -61,3 +61,11 @@ def test_forecast_rejects_bad_lead():
         source.forecast(0, 0)
     with pytest.raises(ValueError):
         source.forecast(0, config.FORECAST_LEADS + 1)
+
+
+def test_story_zero_is_the_wettest_hour_that_leaves_room_for_the_timeline():
+    rain = np.zeros((24, 4, 4))
+    rain[2] = 50.0  # the wettest hour overall, but too early for a T-6 h lead-in
+    rain[16] = 20.0
+    rain[23] = 30.0  # too late for a T+2 h tail
+    assert story_zero_hour(HistoricalRainSource(rain)) == 16

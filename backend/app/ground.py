@@ -19,6 +19,15 @@ NEIGHBOUR_OFFSETS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0
 
 
 @dataclass(frozen=True)
+class Terrain:
+    """Ground heights the model routes on, and which cells are open water."""
+
+    elevation_m: np.ndarray  # includes the assumed underpass dips
+    open_water: np.ndarray  # sea, creek, lagoons: taken from the unmodified elevation
+    dip_cm: np.ndarray  # how far each cell was lowered for an underpass (0 elsewhere)
+
+
+@dataclass(frozen=True)
 class WaterBalance:
     """Water bookkeeping for one hour, in cm summed over cells."""
 
@@ -65,20 +74,20 @@ def route_once(depth_cm: np.ndarray, elevation_m: np.ndarray, fraction: float) -
 def step(
     depth_cm: np.ndarray,
     rain_mm: np.ndarray,
-    elevation_m: np.ndarray,
+    terrain: Terrain,
     drainage_cm: np.ndarray | float = config.DRAINAGE_CM_PER_HOUR,
     substeps: int = config.ROUTING_SUBSTEPS,
     fraction: float = config.FLOW_FRACTION,
 ) -> tuple[np.ndarray, WaterBalance]:
     """Advance the flood state by one hour. Returns (new depth in cm, balance)."""
-    open_water = elevation_m <= config.WATER_LEVEL_M
+    open_water = terrain.open_water
     stored_before = float(depth_cm.sum())
     rain_cm = rain_mm / 10.0
     depth = depth_cm + rain_cm
 
     to_open_water = 0.0
     for _ in range(substeps):
-        depth = route_once(depth, elevation_m, fraction)
+        depth = route_once(depth, terrain.elevation_m, fraction)
         to_open_water += float(depth[open_water].sum())
         depth[open_water] = 0.0
 
@@ -94,17 +103,15 @@ def step(
     return depth, balance
 
 
-def simulate(
-    rain_mm: np.ndarray, elevation_m: np.ndarray
-) -> tuple[np.ndarray, list[WaterBalance]]:
+def simulate(rain_mm: np.ndarray, terrain: Terrain) -> tuple[np.ndarray, list[WaterBalance]]:
     """Run every hour of `rain_mm` (hours, rows, cols) from a dry start.
 
     Returns depth (cm) at the end of each hour, and the hourly water balance.
     """
-    depth = np.zeros(elevation_m.shape)
+    depth = np.zeros(terrain.elevation_m.shape)
     depths, balances = [], []
     for hour_rain in rain_mm:
-        depth, balance = step(depth, hour_rain, elevation_m)
+        depth, balance = step(depth, hour_rain, terrain)
         depths.append(depth)
         balances.append(balance)
     return np.array(depths), balances
@@ -134,6 +141,7 @@ class SegmentIndex:
     starts: np.ndarray  # where each mapped segment begins in `cells`
     mapped: np.ndarray  # segment number for each entry of `starts`
     bridge: np.ndarray  # per segment: True if it is a bridge
+    underpass: np.ndarray  # per segment: True if it is an underpass
     count: int
 
 
@@ -163,15 +171,27 @@ def build_segment_index(features: list[dict[str, Any]], grid: Grid) -> SegmentIn
         starts=np.concatenate([[0], np.cumsum(sizes)[:-1]]).astype(int),
         mapped=mapped,
         bridge=np.array([f["properties"]["bridge"] for f in features], dtype=bool),
+        underpass=np.array([f["properties"]["underpass"] for f in features], dtype=bool),
         count=len(features),
     )
 
 
-def segment_depths(depth_cm: np.ndarray, index: SegmentIndex) -> np.ndarray:
-    """Depth per road segment = deepest cell it crosses. Bridges are always 0:
-    we assume the deck stays above the water."""
+def deepest_cell(depth_cm: np.ndarray, index: SegmentIndex) -> np.ndarray:
     out = np.zeros(index.count)
     out[index.mapped] = np.maximum.reduceat(depth_cm.ravel()[index.cells], index.starts)
+    return out
+
+
+def segment_depths(depth_cm: np.ndarray, index: SegmentIndex, dip_cm: np.ndarray) -> np.ndarray:
+    """Depth per road segment = deepest cell it crosses.
+
+    An underpass sits at the bottom of its dip, so it sees the full depth. A
+    surface road in the same cell floods only once the dip has filled. Bridges
+    are always 0: we assume the deck stays above the water.
+    """
+    in_dip = deepest_cell(depth_cm, index)
+    at_surface = deepest_cell(np.clip(depth_cm - dip_cm, 0.0, None), index)
+    out = np.where(index.underpass, in_dip, at_surface)
     out[index.bridge] = 0.0
     return out
 
@@ -184,17 +204,42 @@ def risk_class(depth_cm: np.ndarray) -> np.ndarray:
     )
 
 
-def peak_flood_hour(depths_by_segment: np.ndarray) -> int:
-    """Story "T-0": the hour with the most impassable segments.
-
-    Ties go to the hour with the greater total depth across segments.
-    """
-    impassable = (risk_class(depths_by_segment) == 2).sum(axis=1)
-    totals = depths_by_segment.sum(axis=1)
-    return int(np.lexsort((totals, impassable))[-1])
+def format_depth(depth_cm: float) -> str:
+    """Depth for display. Very deep values are artefacts of the coarse terrain,
+    so they are reported as a floor, not a number."""
+    if depth_cm > config.DISPLAY_DEPTH_CAP_CM:
+        return f"over {config.DISPLAY_DEPTH_CAP_CM:.0f} cm"
+    return f"{depth_cm:.0f} cm"
 
 
 # ---------------------------------------------------------------- loading
+
+
+def underpass_cells(features: list[dict[str, Any]], grid: Grid) -> np.ndarray:
+    """Flat indices of the cells crossed by underpass (non-bridge) segments."""
+    cells = [
+        line_cells(f["geometry"]["coordinates"], grid)
+        for f in features
+        if f["properties"]["underpass"] and not f["properties"]["bridge"]
+    ]
+    return np.unique(np.concatenate(cells)) if cells else np.array([], dtype=int)
+
+
+def build_terrain(
+    raw_elevation_m: np.ndarray, features: list[dict[str, Any]], grid: Grid
+) -> Terrain:
+    """Terrain with each land underpass cell lowered by an ASSUMED depth.
+
+    The elevation data shows the road surface around an underpass, not its dip.
+    """
+    open_water = raw_elevation_m <= config.WATER_LEVEL_M
+    cells = underpass_cells(features, grid)
+    cells = cells[~open_water.ravel()[cells]]
+    dip_m = np.zeros(raw_elevation_m.shape)
+    dip_m.ravel()[cells] = config.UNDERPASS_DEPTH_M
+    return Terrain(
+        elevation_m=raw_elevation_m - dip_m, open_water=open_water, dip_cm=dip_m * 100.0
+    )
 
 
 def load_elevation() -> np.ndarray:

@@ -32,6 +32,9 @@ RAIN_SCALE = float(os.environ.get("RAIN_SCALE", "1.0"))
 REPLAY_DATE = "2024-04-16"
 TIMEZONE = "Asia/Dubai"
 HOURS = 24
+# The story timeline runs from T-6 h to T+2 h around the computed T-0.
+STORY_HOURS_BEFORE = 6
+STORY_HOURS_AFTER = 2
 
 SEED = 20240416
 
@@ -43,11 +46,13 @@ FORECAST_NOISE_CORRELATION_CELLS = 10.0  # error patches are about 2 km wide
 
 # --- Ground: simplified surrogate. These are assumptions, not calibrated values.
 WATER_LEVEL_M = 0.0  # cells at or below this are open water (sea, creek, lagoons)
+UNDERPASS_DEPTH_M = 3.0  # assumed dip: the elevation data cannot see underpasses
 DRAINAGE_CM_PER_HOUR = 0.5  # drains + infiltration removed from every land cell
 FLOW_FRACTION = 0.5  # share of a cell's water that may move per sub-step
 ROUTING_SUBSTEPS = 6  # water travels at most one cell (200 m) per sub-step
 CAUTION_DEPTH_CM = 10.0  # below: clear
 IMPASSABLE_DEPTH_CM = 30.0  # above: impassable
+DISPLAY_DEPTH_CAP_CM = 100.0  # deeper values are shown as "over 100 cm"
 SENSOR_BLEND_WEIGHT = 0.7  # how far a model cell is pulled toward a sensor reading
 
 # --- Simulated depth sensors.

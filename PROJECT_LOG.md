@@ -3,13 +3,15 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 and 2 are built and tested. Phase 2 produced results that are partly plausible and partly not; three decisions are waiting for you (see the end of Phase 2). Phase 3 has not started.
+**Where we are right now:** Phases 1 and 2 are finished, tested, and pushed to GitHub. The three Phase 2 decisions were made and applied (see "Phase 2b"). Phase 3 (API and a bare map) is next.
+
+**Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
 | Phase | What it is | Status |
 |---|---|---|
 | 0 | Plan and check the outside data services | Done |
 | 1 | Download and store the data | Done |
-| 2 | Rain forecast, flood model, simulated sensors | Built; decisions pending |
+| 2 | Rain forecast, flood model, simulated sensors | Done |
 | 3 | API and a bare map | Not started |
 | 4 | The agent that proposes actions | Not started |
 | 5 | Insurance payouts | Not started |
@@ -159,9 +161,48 @@ Pictures: `data/previews/flood_Tminus_6h.png`, `flood_Tminus_2h.png`, `flood_Tmi
 - **Underpasses barely flood.** In reality underpasses flood first. The elevation data shows the ground surface, not the dip of an underpass, so the model does not know they are low.
 - **Nothing drains.** Raising drainage eightfold (0.5 to 4 cm/h) only cut impassable roads at T–0 from 1,816 to 933 and the deepest cell from 498 to 401 cm. Drainage is not the lever; the bowls are.
 
-### Decisions waiting for you
+### Decisions that were waiting for you (answered: see Phase 2b)
 1. **Underpasses.** Proposal: lower each underpass's cells by an assumed depth (for example 3 m) so water collects there. This is an assumption, would be labelled as one, and makes the "close the underpass" story work. Without it, the agent has few underpasses worth closing.
 2. **The 2 to 5 m depths.** Proposal: leave the model alone, show roads by risk class as planned, and display depths above 100 cm as "over 100 cm". Alternative: smooth the elevation to remove the artificial bowls, which changes every result.
 3. **The story timing.** T–0 is 20:00, so the demo window (T–6 to T+2) is 14:00 to 22:00, and at T–6 about 60% of the eventual flooding is already there. The demo script's "8 a.m., before the rain" opening will not match. Either the script is reworded, or T–0 is redefined (for example, the hour flooding rises fastest, which would be nearer 16:00 to 17:00).
 
 Also to watch in Phase 5: only 2 of 60 sensors read above 30 cm at T–0, so few payouts would fire unless sensors are placed where policies are.
+
+---
+
+## Phase 2b — Your three decisions, applied
+
+You said to go ahead with all three recommendations. This is what was done, including two things that did not go as first described.
+
+### 1. Underpasses are now dips
+- Every land cell crossed by an underpass is lowered by an **assumed 3 m** (`UNDERPASS_DEPTH_M`). 142 cells were lowered.
+- The open-water rule still uses the original heights, so a lowered underpass is never mistaken for sea.
+- **Side effect found and fixed:** ordinary roads that share a grid cell with an underpass were picking up the dip's depth and showing as flooded. Now an underpass sees the full depth in the dip, and a surface road in the same cell floods only once the dip is full.
+- **Known limit:** a grid cell is 200 m × 200 m, far bigger than a real underpass, so each dip holds too much water and takes some from its surroundings. Total impassable roads at 20:00 fell from 1,816 to 1,604 for this reason.
+
+### 2. Very deep values are shown as "over 100 cm"
+- The model itself is unchanged. A display rule (`DISPLAY_DEPTH_CAP_CM = 100`) reports anything deeper as "over 100 cm", because depths beyond that come from artificial bowls in the elevation data.
+
+### 3. T–0 is redefined
+- **First attempt (what I recommended):** T–0 = the hour in which the most roads become impassable. I said this would give 16:00. It did not. The storm came in three waves (04:00, 13:00, 16:00) and, once underpasses were added, the 04:00 wave had the largest one-hour jump. T–0 at 04:00 leaves no room for a T–6 lead-in.
+- **What is used now:** T–0 = the hour of heaviest recorded rain averaged over the area, limited to hours that leave room for T–6 h and T+2 h. This gives **16:00**. It is computed from the data, not typed in. It is a storytelling anchor, not a model prediction, and I chose this rule partly because it gives the window you approved. It is one small function (`story_zero_hour` in `sky.py`) if you want a different rule.
+- `CLAUDE.md` was updated to state the new definition.
+
+### Results after the changes
+The demo window is now **10:00 to 18:00** (T–6 to T+2).
+
+| Moment | Hour | Roads impassable | Underpasses impassable (of 132) |
+|---|---|---|---|
+| T–6 | 10:00 | 500 | 43 |
+| T–2 | 14:00 | 929 | 78 |
+| T–0 | 16:00 | 1,211 | 86 |
+| T+2 | 18:00 | 1,476 | 90 |
+
+- Flooded land cells at T–0: 1,362, middle depth 37 cm. 13 cells are still over 200 cm (deepest 431 cm): the artificial-bowl problem remains and is only hidden by the display rule.
+- Sensors reading above 30 cm at T–0: 11 of 60 (was 2), because 20 sensors sit at underpasses.
+- Flooding roughly doubles between T–6 and T–0, and 43 more underpasses go under in that time. That is the material the agent will work with in Phase 4.
+- Tests: 38, all passing.
+
+### Still true, still a limit
+- Morning flooding from the 04:00 wave is already on the ground at T–6 (500 roads). The demo cannot honestly open on a dry city.
+- The speckled pattern and the handful of extreme depths are unchanged.
