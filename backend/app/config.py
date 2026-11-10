@@ -143,4 +143,5 @@ ALERT_MIN_NEW_SEGMENTS = 5  # a district alert needs this many more impassable s
 ALERT_MIN_LEAD_HOURS = 1
 ALERT_SPACING_HOURS = 3
 ALERT_MAX_CHARS = 160
-AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+# `or` so that an empty value copied from .env.example still gets the default.
+AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
