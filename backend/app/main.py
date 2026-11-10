@@ -15,10 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from app import config
+from app.city import ActionError, Planner, Session
 from app.ground import risk_class
 from app.models import (
+    Action,
     District,
     Meta,
+    PlanResult,
     ReplayFrame,
     RiskCounts,
     SensorReading,
@@ -41,13 +44,16 @@ def roads_json(world: World) -> bytes:
     """Road GeoJSON with each feature's id set to its position in the risk strings."""
     collection = {
         "type": "FeatureCollection",
-        "features": [{**feature, "id": number} for number, feature in enumerate(world.features)],
+        "features": [
+            {**feature, "id": number}
+            for number, feature in enumerate(world.scenario.features)
+        ],
     }
     return json.dumps(collection, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def build_meta(world: World) -> Meta:
-    grid, timeline = world.grid, world.timeline
+    grid, timeline, zero = world.scenario.grid, world.timeline, world.scenario.zero_hour
     return Meta(
         disclaimer=config.DISCLAIMER,
         date=config.REPLAY_DATE,
@@ -60,11 +66,11 @@ def build_meta(world: World) -> Meta:
         rain_cols=timeline.rain_small.shape[2],
         rain_block=config.RAIN_DOWNSAMPLE,
         forecast_leads=config.FORECAST_LEADS,
-        segment_count=len(world.features),
+        segment_count=len(world.scenario.features),
         story=StoryWindow(
-            zero_hour=world.zero_hour,
-            start_hour=world.zero_hour - config.STORY_HOURS_BEFORE,
-            end_hour=world.zero_hour + config.STORY_HOURS_AFTER,
+            zero_hour=zero,
+            start_hour=zero - config.STORY_HOURS_BEFORE,
+            end_hour=zero + config.STORY_HOURS_AFTER,
         ),
         thresholds=Thresholds(
             caution_cm=config.CAUTION_DEPTH_CM,
@@ -77,13 +83,13 @@ def build_meta(world: World) -> Meta:
     )
 
 
-def build_frame(world: World, hour: int) -> ReplayFrame:
-    timeline = world.timeline
+def build_frame(session: Session, hour: int) -> ReplayFrame:
+    scenario, timeline = session.world.scenario, session.timeline
     classes = risk_class(timeline.segment_cm[hour])
     counts = np.bincount(classes, minlength=3)
     return ReplayFrame(
         hour=hour,
-        offset_hours=hour - world.zero_hour,
+        offset_hours=hour - scenario.zero_hour,
         rain_mm=flat_mm(timeline.rain_small[hour]),
         rain_forecast_mm=[flat_mm(lead) for lead in timeline.forecast_small[hour]],
         risk=digits(classes),
@@ -97,18 +103,27 @@ def build_frame(world: World, hour: int) -> ReplayFrame:
                 id=s.id, lat=s.lat, lon=s.lon, at_underpass=s.at_underpass,
                 depth_cm=round(float(cm), 1),
             )
-            for s, cm in zip(world.sensors, timeline.sensor_cm[hour])
+            for s, cm in zip(scenario.sensors, timeline.sensor_cm[hour])
         ],
+        actions=session.actions,
+        closed_segments=session.closed_segments(hour),
+        alerts=session.alerts(hour),
+        pumps_available=session.situation(hour).inventory.pumps_available,
     )
 
 
-def create_app(world: World | None = None) -> FastAPI:
+def check_hour(session: Session, hour: int) -> None:
+    if not 0 <= hour < session.world.scenario.hours:
+        raise HTTPException(status_code=404, detail="hour is outside the replay window")
+
+
+def create_app(world: World | None = None, planner: Planner | None = None) -> FastAPI:
     """Build the app. Pass a `world` in tests; otherwise it is loaded from data/."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.world = world or load_world()
-        app.state.roads = roads_json(app.state.world)
+        app.state.session = Session(world or load_world(), planner)
+        app.state.roads = roads_json(app.state.session.world)
         yield
 
     app = FastAPI(title="Mirage (prototype)", lifespan=lifespan)
@@ -118,9 +133,15 @@ def create_app(world: World | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    def decide(request: Request, action_id: str, approve: bool) -> Action:
+        try:
+            return request.app.state.session.decide(action_id, approve)
+        except ActionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.get("/api/meta")
     def meta(request: Request) -> Meta:
-        return build_meta(request.app.state.world)
+        return build_meta(request.app.state.session.world)
 
     @app.get("/api/roads")
     def roads(request: Request) -> Response:
@@ -128,10 +149,27 @@ def create_app(world: World | None = None) -> FastAPI:
 
     @app.get("/api/replay/{hour}")
     def replay(hour: int, request: Request) -> ReplayFrame:
-        current: World = request.app.state.world
-        if not 0 <= hour < current.timeline.segment_cm.shape[0]:
-            raise HTTPException(status_code=404, detail="hour is outside the replay window")
-        return build_frame(current, hour)
+        check_hour(request.app.state.session, hour)
+        return build_frame(request.app.state.session, hour)
+
+    @app.post("/api/plan/{hour}")
+    def plan(hour: int, request: Request) -> PlanResult:
+        """Ask the planner for proposals. They are queued as `proposed`, nothing more."""
+        check_hour(request.app.state.session, hour)
+        return request.app.state.session.plan(hour)
+
+    @app.post("/api/actions/{action_id}/approve")
+    def approve(action_id: str, request: Request) -> Action:
+        return decide(request, action_id, approve=True)
+
+    @app.post("/api/actions/{action_id}/reject")
+    def reject(action_id: str, request: Request) -> Action:
+        return decide(request, action_id, approve=False)
+
+    @app.post("/api/reset")
+    def reset(request: Request) -> dict[str, bool]:
+        request.app.state.session.reset()
+        return {"ok": True}
 
     return app
 

@@ -3,6 +3,7 @@ import {
   type ExpressionSpecification,
   type LineLayerSpecification,
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   setWorkerUrl,
 } from "maplibre-gl";
@@ -10,7 +11,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
-import { fetchRoads, type Meta } from "../api";
+import { type Action, fetchRoads, type Meta } from "../api";
 import { COLORS, loadBaseStyle } from "./style";
 
 setWorkerUrl(workerUrl);
@@ -22,6 +23,33 @@ interface Props {
   meta: Meta;
   /** One digit per road segment: 0 clear, 1 caution, 2 impassable. */
   risk: string;
+  actions: Action[];
+  hour: number;
+}
+
+/** Approved closures and pumps that are in force at `hour`. Proposals are never drawn. */
+function activeOnMap(actions: Action[], hour: number): Action[] {
+  return actions.filter(
+    (action) =>
+      action.status === "approved" &&
+      (action.type === "close_underpass" || action.type === "stage_pump") &&
+      action.start_hour <= hour &&
+      (action.end_hour === null || hour < action.end_hour),
+  );
+}
+
+function markerElement(action: Action): HTMLElement {
+  const element = document.createElement("div");
+  const closure = action.type === "close_underpass";
+  element.className = closure ? "marker closure" : "marker pump";
+  element.title = `${closure ? "Closed" : "Pump staged"}: ${action.label}`;
+  if (closure) {
+    element.textContent = "CLOSED";
+  } else {
+    // The diamond is drawn in CSS; a text label keeps it readable without colour.
+    element.innerHTML = '<span class="diamond"></span><span class="marker-text">PUMP</span>';
+  }
+  return element;
 }
 
 function addRoadLayer(map: MapLibreMap, roads: FeatureCollection): void {
@@ -49,7 +77,7 @@ function addRoadLayer(map: MapLibreMap, roads: FeatureCollection): void {
   map.addLayer(layer);
 }
 
-export function MapView({ meta, risk }: Props) {
+export function MapView({ meta, risk, actions, hour }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const applied = useRef("");
@@ -100,6 +128,21 @@ export function MapView({ meta, risk }: Props) {
     }
     applied.current = risk;
   }, [ready, risk]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const markers = activeOnMap(actions, hour).map((action) =>
+      new Marker({
+        element: markerElement(action),
+        // Offset so a pump and a closure at the same underpass do not overlap.
+        offset: action.type === "stage_pump" ? [0, 16] : [0, -12],
+      })
+        .setLngLat([action.lon, action.lat])
+        .addTo(map),
+    );
+    return () => markers.forEach((marker) => marker.remove());
+  }, [ready, actions, hour]);
 
   return (
     <>

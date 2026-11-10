@@ -1,7 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { fetchFrame, fetchMeta, type Meta, type ReplayFrame } from "./api";
+import {
+  decideAction,
+  fetchFrame,
+  fetchMeta,
+  requestPlan,
+  resetReplay,
+  type Meta,
+  type PlanResult,
+  type ReplayFrame,
+} from "./api";
 import { MapView } from "./map/MapView";
+import { ActionQueue } from "./panels/ActionQueue";
 import { clockLabel, offsetLabel, Timeline } from "./panels/Timeline";
 
 type View = "risk" | "risk_uncorrected" | "risk_next_6h";
@@ -17,7 +27,12 @@ export function App() {
   const [hour, setHour] = useState<number | null>(null);
   const [frame, setFrame] = useState<ReplayFrame | null>(null);
   const [view, setView] = useState<View>("risk");
-  const [error, setError] = useState<string | null>(null);
+  const [fatal, setFatal] = useState<string | null>(null);
+  const [lastPlan, setLastPlan] = useState<PlanResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const hourRef = useRef<number | null>(null);
+  hourRef.current = hour;
 
   useEffect(() => {
     fetchMeta()
@@ -25,7 +40,7 @@ export function App() {
         setMeta(loaded);
         setHour(loaded.story.start_hour);
       })
-      .catch((reason: unknown) => setError(String(reason)));
+      .catch((reason: unknown) => setFatal(String(reason)));
   }, []);
 
   useEffect(() => {
@@ -35,13 +50,39 @@ export function App() {
       .then((loaded) => {
         if (!stale) setFrame(loaded);
       })
-      .catch((reason: unknown) => setError(String(reason)));
+      .catch((reason: unknown) => setFatal(String(reason)));
     return () => {
       stale = true;
     };
   }, [hour]);
 
-  if (error) return <div className="fatal">Cannot reach the Mirage API. {error}</div>;
+  /**
+   * Run one agent or operator request, then reload the frame. Buttons stay
+   * disabled until the reloaded frame is on screen: after a pump approval the
+   * server re-runs the simulation, and a stale card must not be clickable.
+   */
+  const run = useCallback(async (work: () => Promise<void>) => {
+    setBusy(true);
+    setQueueError(null);
+    try {
+      await work();
+    } catch (reason) {
+      setQueueError(reason instanceof Error ? reason.message : String(reason));
+    }
+    try {
+      const shownHour = hourRef.current;
+      if (shownHour !== null) {
+        const loaded = await fetchFrame(shownHour);
+        if (hourRef.current === loaded.hour) setFrame(loaded);
+      }
+    } catch (reason) {
+      setFatal(String(reason));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  if (fatal) return <div className="fatal">Cannot reach the Mirage API. {fatal}</div>;
   if (!meta || hour === null) return <div className="fatal">Loading replay…</div>;
 
   const shown = frame ? frame[view] : "";
@@ -49,7 +90,7 @@ export function App() {
 
   return (
     <div className="app">
-      <MapView meta={meta} risk={shown} />
+      <MapView meta={meta} risk={shown} actions={frame?.actions ?? []} hour={hour} />
 
       <header className="topbar">
         <h1>
@@ -98,10 +139,23 @@ export function App() {
             <b>{count("0").toLocaleString()}</b>
           </li>
         </ul>
-        <p className="note">
-          Road segments of {meta.segment_count.toLocaleString()}. Depths come from a simplified
-          model, not a hydraulic one.
-        </p>
+
+        <ActionQueue
+          meta={meta}
+          actions={frame?.actions ?? []}
+          pumpsAvailable={frame?.pumps_available ?? 0}
+          lastPlan={lastPlan}
+          busy={busy}
+          error={queueError}
+          onPlan={() => run(async () => setLastPlan(await requestPlan(hour)))}
+          onDecide={(id, decision) => run(async () => void (await decideAction(id, decision)))}
+          onReset={() =>
+            run(async () => {
+              await resetReplay();
+              setLastPlan(null);
+            })
+          }
+        />
       </aside>
 
       <footer className="bottombar">

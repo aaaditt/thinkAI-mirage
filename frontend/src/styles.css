@@ -263,3 +263,269 @@ input:focus-visible {
   bottom: 104px;
   right: 6px;
 }
+
+/* ---------- right panel: fits the height, queue scrolls inside ---------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-height: calc(100% - 152px);
+}
+
+.panel .clock,
+.panel .views,
+.panel .legend {
+  flex: none;
+}
+
+.views {
+  grid-template-columns: repeat(3, 1fr);
+  margin: 14px 0 12px;
+}
+
+.view {
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.legend {
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* ---------- agent queue ---------- */
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.queue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.queue-head h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.queue-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--amber);
+}
+
+.queue-tools {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.queue button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--sand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.queue button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.queue button.primary {
+  flex: 1;
+  border-color: var(--cyan);
+  background: var(--cyan);
+  color: #06202a;
+}
+
+.queue .note {
+  margin: 10px 0 0;
+}
+
+.queue-error {
+  margin: 8px 0 0;
+  color: var(--impassable);
+  font-size: 12px;
+}
+
+.queue-empty {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.actions {
+  display: grid;
+  gap: 10px;
+  margin: 12px -6px 0 0;
+  padding: 0 6px 0 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.action {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+  background: rgba(230, 236, 243, 0.04);
+}
+
+.action.approved {
+  border-left-color: var(--cyan);
+}
+
+.action.rejected {
+  border-left-color: var(--muted);
+  opacity: 0.6;
+}
+
+.action-head {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.action-type {
+  color: var(--amber);
+}
+
+.action-type.area_alert {
+  color: var(--cyan);
+}
+
+.action-id {
+  color: var(--muted);
+}
+
+.action-target {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.action-when {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.action-message {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--cyan);
+  background: rgba(60, 207, 224, 0.08);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.action-reason {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.evidence {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.evidence dt {
+  color: var(--muted);
+}
+
+.evidence dd {
+  margin: 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action-buttons button {
+  flex: 1;
+}
+
+.queue button.approve {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.queue button.approve:hover:not(:disabled) {
+  background: rgba(60, 207, 224, 0.16);
+}
+
+.queue button.reject:hover:not(:disabled) {
+  border-color: var(--impassable);
+  color: var(--impassable);
+}
+
+.action-status {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cyan);
+}
+
+.action-status.rejected {
+  color: var(--muted);
+}
+
+/* ---------- map markers (approved actions only) ---------- */
+
+.marker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: default;
+}
+
+.marker.closure {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--amber);
+  color: #1a1204;
+  box-shadow: 0 0 0 2px rgba(11, 18, 32, 0.9);
+}
+
+.marker.pump {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--cyan);
+  text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg);
+}
+
+.diamond {
+  width: 11px;
+  height: 11px;
+  transform: rotate(45deg);
+  background: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(11, 18, 32, 0.9);
+}

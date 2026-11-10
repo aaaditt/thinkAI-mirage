@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 to 3 are finished, tested, and pushed to GitHub. The app shows the map with flood-risk roads and a timeline you can scrub. Phase 4 (the agent that proposes actions) is next.
+**Where we are right now:** Phases 1 to 4 are finished, tested, and pushed to GitHub. The agent proposes pumps, closures and alerts, and nothing takes effect until you click Approve. Phase 5 (insurance payouts) is next.
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -13,7 +13,7 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 1 | Download and store the data | Done |
 | 2 | Rain forecast, flood model, simulated sensors | Done |
 | 3 | API and a bare map | Done |
-| 4 | The agent that proposes actions | Not started |
+| 4 | The agent that proposes actions | Done (LLM path untested against a live key) |
 | 5 | Insurance payouts | Not started |
 | 6 | Polish for the demo | Not started |
 | 7 | Make it safe to present | Not started |
@@ -272,3 +272,88 @@ cd frontend
 npm run dev
 ```
 Then open http://localhost:5173
+
+---
+
+## Phase 4 — City: the agent and the approval queue
+
+No new data was downloaded. The pump fleet, depots and alerts are all invented for the demo.
+
+### What was built, in order
+1. **`backend/app/city.py`** — the whole City engine:
+   - **Sites.** Road pieces are grouped back into whole roads. Underpass carriageways that share a grid cell are merged, so one physical underpass is one site. There are 68 underpass sites.
+   - **Situation.** What the agent is given each time: the 10 most urgent underpasses and 5 deepest roads for the next 6 hours, an outlook for each of the three districts, the pump stock, and every action so far.
+   - **`RulePlanner`.** A fixed set of rules. Works with no internet and no key.
+   - **`LLMPlanner`.** Sends the situation, the answer format and the hard rules to Azure OpenAI and reads back a plan.
+   - **`validate_plan`.** The hard rules, checked on every plan from either planner.
+   - **`Session`.** Holds the queue of actions and applies human decisions.
+2. **Four new API addresses:** ask for a plan, approve an action, reject an action, reset.
+3. **Frontend:** an "Agent proposals" panel with the reason, the evidence and Approve / Reject buttons, plus map markers for approved closures ("CLOSED") and staged pumps (a diamond labelled "PUMP").
+
+### The rule: nothing happens without approval
+- A planner can only produce proposals. Each one enters the queue as `proposed`.
+- The simulation is only ever handed the list of **approved** actions. Proposed and rejected ones never reach it.
+- A test proposes actions, then rejects them, and checks the entire timeline is identical to the baseline, byte for byte, with no closures, no alerts and no pumps used.
+- A decision is final. Approving twice, or approving a pump when none are left, is refused.
+
+### What each approved action does
+| Action | Effect |
+|---|---|
+| Stage pump | Adds drainage at that underpass from its start hour (assumed 2.5 cm per hour over one grid cell, about 1,000 m³ per hour). The flood simulation is re-run. |
+| Close underpass | Shown as "CLOSED" on the map from its start hour. Does not change the water. |
+| Area alert | The text is stored in the app and attached to that hour. It is never sent anywhere. |
+| Reopen road | Ends a closure. |
+
+### The hard rules checked on every plan
+- Targets must come from the situation (no invented places).
+- Only underpasses can be closed.
+- No more pumps than are available.
+- An alert must name its district, give a clock time, be at most 160 characters, and never mention a road or a route.
+- No alert with under 1 hour of lead time unless the district is already flooded.
+- At most one alert per district per 3 hours.
+- Nothing may start in the past.
+
+If the LLM's plan breaks any rule, or the reply is not valid, or the network fails, the whole plan is thrown away, the reason is logged, and `RulePlanner` answers instead.
+
+### What the rule planner proposed on the real replay
+No Azure key is set on this laptop, so all of this is from `RulePlanner`.
+
+**T–6 h (10:00)** — 10 proposals
+- Close 4 underpasses from 11:00, each forecast to pass 30 cm within 2 hours. One is on Al Ittihad Road; three are unnamed.
+- Stage 3 pumps from 11:00 at three of them.
+- Alerts for Al Barsha ("from ~11:00"), Al Quoz ("from ~13:00") and Business Bay ("from ~14:00").
+
+**T–4 h (12:00)** — 4 proposals
+- Close 4 more underpasses now: Zaa'beel Palace Street, Al Asayel Street (Business Bay), Airport Road, Al Ittihad Road. Each floods within 1 hour, which is too late to stage a pump.
+- No alerts: each district had one less than 3 hours earlier.
+
+**T–2 h (14:00)** — 10 proposals
+- Close 4 underpasses (3 from 15:00, 1 from 17:00), including Al Badaa' Street and Sheikh Zayed Road.
+- Stage 3 pumps from 15:00.
+- A second alert for each district, "from ~16:00".
+
+Example alert, 99 characters: *"Flooding expected in Al Barsha from ~16:00. Avoid underpasses. Delay travel, or leave before 15:00."*
+
+### How much the pumps help (be honest about this)
+Not much. At the pumped underpasses the modelled depth at T–0 dropped by 2 to 15 cm, for example 112 cm to 97 cm. No pumped underpass stayed passable, and the city-wide count of impassable roads at T–0 did not change (1,422 either way). One assumed pump is small next to the water collecting in a 200 m grid cell. In this prototype the pumps show the mechanism, not a meaningful benefit.
+
+### Problems found and fixed in this phase
+1. **Duplicate underpasses.** Each carriageway is a separate OpenStreetMap way, so the planner proposed two closures and two pumps for one underpass. Fixed by merging underpass ways that share a grid cell.
+2. **Slow batch approvals.** Each pump approval re-ran the simulation (about 4 seconds). The re-run now happens on the next read, so several approvals in a row cost one re-run when driven through the API.
+3. **Buttons re-enabled too early (found in the browser test).** After approving a pump, the buttons came back before the refreshed data arrived, so the same card could be clicked again and the server refused with "already approved". The server's guard held and nothing was applied twice. The buttons now stay disabled until the refreshed data is on screen.
+4. **A leftover dev server.** When Claude Code stopped the servers for low memory earlier, the frontend's Node process survived and kept its port. It was found and stopped.
+
+### Tests
+100 backend tests, all passing. 46 are new for this phase: planner behaviour, every hard rule, the LLM fallback (bad text, wrong format, rule-breaking, network failure), the approval gate, and the API.
+
+### Not verified, and known limits
+- **The Azure OpenAI path has never talked to a real Azure endpoint.** There is no key here. It is tested with stand-in replies only. The first run with a real key may need fixes.
+- **Approving pumps one by one in the screen is slow:** about 4 seconds each, because each click reloads the hour.
+- **Most underpasses are unnamed** in OpenStreetMap, so they show as "Unnamed underpass (lat, lon)".
+- **Two pump markers can sit on top of each other** when their underpasses are close.
+- **"Reopen road" never fires in this replay**, because almost nothing drains during the day. It is tested with made-up situations.
+- **Tankers** exist only as numbers in the mock inventory. Nothing uses them.
+- **The confidence figure** is a simple formula from the lead time (95% minus 8 points per hour), not a measured skill score.
+
+### Screenshots
+`data/previews/app_agent_proposed_1920.png` (ten proposals, map unchanged) and `data/previews/app_agent_approved_T-0_1920.png` (after approving, at T–0, with CLOSED and PUMP markers). On this laptop only.

@@ -122,3 +122,25 @@ def build_grid(cell_size_m: float = CELL_SIZE_M) -> Grid:
 
 
 GRID = build_grid()
+
+# --- City: mock resources and planning rules. All of this is invented for the demo.
+PUMP_COUNT = 12
+TANKER_COUNT = 6
+# Mock depots: name -> (lat, lon, pumps, tankers).
+DEPOTS: dict[str, tuple[float, float, int, int]] = {
+    "Al Quoz depot (mock)": (25.135, 55.235, 6, 3),
+    "Ras Al Khor depot (mock)": (25.180, 55.350, 6, 3),
+}
+# Assumed: one pump moves about 1,000 m3/h, which is 2.5 cm/h over one 200 m cell.
+PUMP_DRAINAGE_CM_PER_HOUR = 2.5
+PLAN_TOP_UNDERPASSES = 10
+PLAN_TOP_ROADS = 5
+MAX_CLOSURES_PER_PLAN = 4
+MAX_PUMPS_PER_PLAN = 3
+PUMP_MIN_LEAD_HOURS = 2  # a pump is only staged where there is time to get it there
+DISTRICT_RADIUS_KM = 2.5
+ALERT_MIN_NEW_SEGMENTS = 5  # a district alert needs this many more impassable segments
+ALERT_MIN_LEAD_HOURS = 1
+ALERT_SPACING_HOURS = 3
+ALERT_MAX_CHARS = 160
+AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")

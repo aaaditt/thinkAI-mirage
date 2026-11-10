@@ -19,7 +19,8 @@ def test_block_mean_preserves_a_uniform_field_on_stacked_grids():
 
 
 def test_timeline_shapes(small_world):
-    timeline, n, s = small_world.timeline, len(small_world.features), len(small_world.sensors)
+    scenario, timeline = small_world.scenario, small_world.timeline
+    n, s = len(scenario.features), len(scenario.sensors)
     leads = config.FORECAST_LEADS
     assert timeline.rain_small.shape == (config.HOURS, 3, 3)
     assert timeline.forecast_small.shape == (config.HOURS, leads, 3, 3)
@@ -41,10 +42,10 @@ def test_sensor_correction_changes_the_model_estimate(small_world):
 
 
 def test_bridges_stay_dry_through_the_whole_timeline(small_world):
-    bridge = [f["properties"]["bridge"] for f in small_world.features]
+    bridge = [f["properties"]["bridge"] for f in small_world.scenario.features]
     assert not small_world.timeline.segment_cm[:, bridge].any()
     assert not small_world.timeline.segment_forecast_cm[:, :, bridge].any()
 
 
 def test_story_zero_is_the_wet_hour(small_world):
-    assert small_world.zero_hour == 14
+    assert small_world.scenario.zero_hour == 14

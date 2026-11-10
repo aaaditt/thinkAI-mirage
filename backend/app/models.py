@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class District(BaseModel):
@@ -59,6 +61,107 @@ class SensorReading(BaseModel):
     depth_cm: float
 
 
+# ---------------------------------------------------------------- City
+
+
+class Evidence(BaseModel):
+    forecast_depth_cm: float = Field(ge=0)
+    lead_hours: int = Field(ge=0, le=6)
+    confidence: float = Field(ge=0, le=1)
+
+
+class ProposedAction(BaseModel):
+    """What a planner may output. Nothing here has any effect until approved."""
+
+    type: Literal["stage_pump", "close_underpass", "area_alert", "open_road"]
+    target: str  # a site id from the situation, or a district name for area_alert
+    start_hour: int = Field(ge=0, le=23)
+    reason: str = Field(min_length=1, max_length=300)
+    evidence: Evidence
+    message: str | None = None  # alert text; required for area_alert only
+
+
+class Plan(BaseModel):
+    actions: list[ProposedAction]
+
+
+class Action(ProposedAction):
+    """A proposal in the queue. Only a human decision changes `status`."""
+
+    id: str
+    status: Literal["proposed", "approved", "rejected"] = "proposed"
+    label: str
+    lat: float
+    lon: float
+    proposed_hour: int
+    end_hour: int | None = None  # set on a closure when its road is reopened
+
+
+class AtRiskSite(BaseModel):
+    """A road or underpass (one OSM way) with its modelled outlook."""
+
+    target: str
+    label: str
+    underpass: bool
+    district: str | None
+    depth_now_cm: float
+    forecast_peak_cm: float
+    peak_lead_hours: int
+    impassable_lead_hours: int | None  # 0 = already impassable; None = not forecast
+
+
+class DistrictOutlook(BaseModel):
+    name: str
+    impassable_now: int
+    impassable_by_lead: list[int]  # for +1..+6 h
+    deepest_now_cm: float
+    deepest_forecast_cm: float
+
+
+class Depot(BaseModel):
+    name: str
+    lat: float
+    lon: float
+    pumps: int
+    tankers: int
+
+
+class Inventory(BaseModel):
+    """MOCK resources. There is no real fleet behind these numbers."""
+
+    pumps_total: int
+    pumps_available: int
+    tankers_total: int
+    depots: list[Depot]
+
+
+class Situation(BaseModel):
+    """Everything a planner is given."""
+
+    hour: int
+    clock: str
+    sites: list[AtRiskSite]
+    closed_sites: list[AtRiskSite]  # outlook for underpasses currently closed
+    districts: list[DistrictOutlook]
+    inventory: Inventory
+    actions: list[Action]  # every action so far, with its status
+
+
+class PlanResult(BaseModel):
+    planner: Literal["llm", "rules"]
+    fallback_reason: str | None = None
+    actions: list[Action]
+
+
+class Alert(BaseModel):
+    """An approved area alert. Shown in the app only; never sent anywhere."""
+
+    action_id: str
+    district: str
+    message: str
+    issued_hour: int
+
+
 class ReplayFrame(BaseModel):
     """Everything the screen needs for one hour.
 
@@ -75,3 +178,7 @@ class ReplayFrame(BaseModel):
     risk_next_6h: str  # worst class forecast over the next 6 hours
     counts: RiskCounts  # for `risk`
     sensors: list[SensorReading]
+    actions: list[Action]  # the whole queue, every status
+    closed_segments: list[int]  # road segments closed by an APPROVED action at this hour
+    alerts: list[Alert]  # approved alerts issued up to this hour, newest last
+    pumps_available: int

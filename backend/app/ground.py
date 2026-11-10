@@ -177,6 +177,15 @@ def build_segment_index(features: list[dict[str, Any]], grid: Grid) -> SegmentIn
     )
 
 
+def cells_by_segment(index: SegmentIndex) -> list[np.ndarray]:
+    """Grid cells crossed by each segment (empty for segments outside the grid)."""
+    ends = np.append(index.starts[1:], index.cells.size)
+    out = [np.array([], dtype=int)] * index.count
+    for segment, start, end in zip(index.mapped, index.starts, ends):
+        out[segment] = index.cells[start:end]
+    return out
+
+
 def deepest_cell(depth_cm: np.ndarray, index: SegmentIndex) -> np.ndarray:
     out = np.zeros(index.count)
     out[index.mapped] = np.maximum.reduceat(depth_cm.ravel()[index.cells], index.starts)

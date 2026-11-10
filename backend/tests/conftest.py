@@ -8,7 +8,7 @@ import pytest
 from app import config
 from app.config import Grid
 from app.ground import build_segment_index, build_terrain
-from app.replay import World, build_timeline
+from app.replay import Scenario, World, build_timeline
 from app.sensors import place_sensors
 from app.sky import HistoricalRainSource, story_zero_hour
 
@@ -43,11 +43,14 @@ def small_world() -> World:
     sensors = place_sensors(
         features, SMALL_GRID, ~terrain.open_water, np.random.default_rng(0)
     )
-    index = build_segment_index(features, SMALL_GRID)
-    return World(
+    scenario = Scenario(
         grid=SMALL_GRID,
         features=features,
+        terrain=terrain,
+        index=build_segment_index(features, SMALL_GRID),
+        source=source,
         sensors=sensors,
+        hours=config.HOURS,
         zero_hour=story_zero_hour(source),
-        timeline=build_timeline(source, config.HOURS, terrain, index, sensors),
     )
+    return World(scenario=scenario, timeline=build_timeline(scenario))
