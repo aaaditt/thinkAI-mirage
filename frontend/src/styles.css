@@ -1,0 +1,265 @@
+:root {
+  --bg: #0b1220;
+  --panel: rgba(11, 18, 32, 0.88);
+  --line: rgba(230, 236, 243, 0.14);
+  --cyan: #3ccfe0;
+  --amber: #f2a93b;
+  --sand: #e6ecf3;
+  --muted: #8fa0b5;
+  --clear-road: #3a5673;
+  --impassable: #ff5c6c;
+  --font-head: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --font-body: Inter, "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--sand);
+  font-family: var(--font-body);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+.fatal,
+.map-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--amber);
+  font-family: var(--font-mono);
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  position: absolute;
+  top: 16px;
+  left: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.topbar h1 span {
+  color: var(--cyan);
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+.badge {
+  padding: 6px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  background: rgba(242, 169, 59, 0.14);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ---------- right panel ---------- */
+
+.panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 320px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+}
+
+.clock-offset {
+  font-family: var(--font-head);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cyan);
+}
+
+.clock-time {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.views {
+  display: grid;
+  gap: 6px;
+  margin: 20px 0 16px;
+}
+
+.view {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sand);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view:hover {
+  border-color: var(--cyan);
+}
+
+.view.active {
+  border-color: var(--cyan);
+  background: rgba(60, 207, 224, 0.14);
+  color: var(--cyan);
+}
+
+.legend {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.legend b {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+/* Swatch thickness matches the line widths on the map. */
+.swatch {
+  width: 28px;
+  border-radius: 4px;
+}
+
+.swatch.impassable {
+  height: 7px;
+  background: var(--impassable);
+}
+
+.swatch.caution {
+  height: 4px;
+  background: var(--amber);
+}
+
+.swatch.clear {
+  height: 2px;
+  background: var(--clear-road);
+}
+
+.note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- bottom timeline ---------- */
+
+.bottombar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  padding: 14px 20px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+}
+
+.timeline input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--cyan);
+}
+
+.timeline-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.tick {
+  display: grid;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tick:hover {
+  color: var(--sand);
+}
+
+.tick.active {
+  color: var(--cyan);
+  background: rgba(60, 207, 224, 0.12);
+}
+
+.tick-clock {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.maplibregl-ctrl-attrib {
+  font-family: var(--font-body);
+}
+
+/* Keep the map attribution clear of the timeline bar. */
+.maplibregl-ctrl-bottom-right {
+  bottom: 104px;
+  right: 6px;
+}

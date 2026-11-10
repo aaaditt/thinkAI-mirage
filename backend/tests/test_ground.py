@@ -13,6 +13,8 @@ from app.ground import (
     route_once,
     segment_depths,
     simulate,
+    split_line,
+    split_long_features,
     step,
 )
 
@@ -207,3 +209,29 @@ def test_water_collects_in_a_lowered_underpass():
     depth, _ = step(np.zeros(GRID.shape), np.full(GRID.shape, 20.0), built, drainage_cm=0.0)
     assert depth[4, 4] > 2.0  # more than the 2 cm that fell on it
     assert depth[4, 4] == depth.max()
+
+
+# ---------------------------------------------------------------- splitting
+
+
+def test_short_line_is_left_alone():
+    line = [[55.0, 25.0], [55.001, 25.0]]  # about 100 m
+    assert split_line(line, 400.0) == [line]
+
+
+def test_long_line_is_cut_into_equal_connected_pieces():
+    line = [[55.0, 25.0], [55.005, 25.0], [55.01, 25.0]]  # about 1 km with a middle vertex
+    pieces = split_line(line, 400.0)
+    assert len(pieces) == 3
+    assert pieces[0][0] == line[0] and pieces[-1][-1] == line[-1]
+    for before, after in zip(pieces, pieces[1:]):
+        assert before[-1] == after[0]  # no gaps between pieces
+    assert [55.005, 25.0] in pieces[1]  # original vertices are kept
+
+
+def test_split_features_keep_their_properties():
+    feature = road([[55.0, 25.0], [55.01, 25.0]], underpass=True)
+    parts = split_long_features([feature, road([[55.0, 25.0], [55.001, 25.0]])], 400.0)
+    assert len(parts) == 4
+    assert all(p["properties"]["underpass"] for p in parts[:3])
+    assert not parts[3]["properties"]["underpass"]

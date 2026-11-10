@@ -7,6 +7,7 @@ remove a fixed drainage amount, never go below zero.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -246,5 +247,35 @@ def load_elevation() -> np.ndarray:
     return np.load(config.ELEVATION_PATH).astype(float)
 
 
+def split_line(coords: list[list[float]], max_m: float) -> list[list[list[float]]]:
+    """Cut a (lon, lat) line into equal pieces no longer than `max_m` metres."""
+    points = np.asarray(coords, dtype=float)
+    scale_x = config.METRES_PER_DEG_LAT * math.cos(math.radians(points[0, 1]))
+    along = np.concatenate([[0.0], np.cumsum(np.hypot(
+        np.diff(points[:, 0]) * scale_x, np.diff(points[:, 1]) * config.METRES_PER_DEG_LAT))])
+    pieces = max(1, math.ceil(along[-1] / max_m))
+    if pieces == 1:
+        return [coords]
+    cuts = np.linspace(0.0, along[-1], pieces + 1)
+    out = []
+    for start, end in zip(cuts[:-1], cuts[1:]):
+        inner = along[(along > start) & (along < end)]
+        stops = np.concatenate([[start], inner, [end]])
+        lons = np.interp(stops, along, points[:, 0])
+        lats = np.interp(stops, along, points[:, 1])
+        out.append([[round(float(x), 5), round(float(y), 5)] for x, y in zip(lons, lats)])
+    return out
+
+
+def split_long_features(features: list[dict[str, Any]], max_m: float) -> list[dict[str, Any]]:
+    """Road segments for the model: each OSM way cut into pieces of at most `max_m`."""
+    return [
+        {**feature, "geometry": {"type": "LineString", "coordinates": piece}}
+        for feature in features
+        for piece in split_line(feature["geometry"]["coordinates"], max_m)
+    ]
+
+
 def load_road_features() -> list[dict[str, Any]]:
-    return json.loads(config.ROADS_PATH.read_text(encoding="utf-8"))["features"]
+    ways = json.loads(config.ROADS_PATH.read_text(encoding="utf-8"))["features"]
+    return split_long_features(ways, config.MAX_SEGMENT_M)

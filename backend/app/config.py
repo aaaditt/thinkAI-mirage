@@ -17,6 +17,11 @@ RAIN_TRUTH_PATH = DATA_DIR / "rain_truth.npy"
 ELEVATION_PATH = DATA_DIR / "elevation.npy"
 ELEVATION_PARTIAL_PATH = DATA_DIR / "elevation_partial.npy"
 ROADS_PATH = DATA_DIR / "roads.geojson"
+TIMELINE_PATH = DATA_DIR / "timeline.npz"
+
+DISCLAIMER = "Prototype — simulated sensors, simplified flood model"
+CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+RAIN_DOWNSAMPLE = 4  # rain grids are sent to the browser as 4x4-cell block means
 
 # Dubai urban core.
 LAT_MIN, LAT_MAX = 25.03, 25.30
@@ -50,6 +55,7 @@ UNDERPASS_DEPTH_M = 3.0  # assumed dip: the elevation data cannot see underpasse
 DRAINAGE_CM_PER_HOUR = 0.5  # drains + infiltration removed from every land cell
 FLOW_FRACTION = 0.5  # share of a cell's water that may move per sub-step
 ROUTING_SUBSTEPS = 6  # water travels at most one cell (200 m) per sub-step
+MAX_SEGMENT_M = 400.0  # longer OSM ways are cut up, so one wet cell cannot flag km of road
 CAUTION_DEPTH_CM = 10.0  # below: clear
 IMPASSABLE_DEPTH_CM = 30.0  # above: impassable
 DISPLAY_DEPTH_CAP_CM = 100.0  # deeper values are shown as "over 100 cm"

@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 and 2 are finished, tested, and pushed to GitHub. The three Phase 2 decisions were made and applied (see "Phase 2b"). Phase 3 (API and a bare map) is next.
+**Where we are right now:** Phases 1 to 3 are finished, tested, and pushed to GitHub. The app shows the map with flood-risk roads and a timeline you can scrub. Phase 4 (the agent that proposes actions) is next.
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -12,7 +12,7 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 0 | Plan and check the outside data services | Done |
 | 1 | Download and store the data | Done |
 | 2 | Rain forecast, flood model, simulated sensors | Done |
-| 3 | API and a bare map | Not started |
+| 3 | API and a bare map | Done |
 | 4 | The agent that proposes actions | Not started |
 | 5 | Insurance payouts | Not started |
 | 6 | Polish for the demo | Not started |
@@ -206,3 +206,69 @@ The demo window is now **10:00 to 18:00** (T–6 to T+2).
 ### Still true, still a limit
 - Morning flooding from the 04:00 wave is already on the ground at T–6 (500 roads). The demo cannot honestly open on a dry city.
 - The speckled pattern and the handful of extreme depths are unchanged.
+
+---
+
+## Phase 3 — API and a bare map
+
+No new data was downloaded. This phase turns the Phase 2 engines into a web app.
+
+### What was built, in order
+1. **`backend/app/replay.py` — the timeline.** Runs the whole day once and saves the result to `data/timeline.npz` (2.7 MB). It takes about 6 seconds the first time; after that it loads from the file. It is rebuilt automatically if any setting or data file changes.
+2. **`backend/app/models.py`** — the shapes of the data the API sends.
+3. **`backend/app/main.py` — the API.** Three addresses:
+   - `/api/meta`: map area, grid size, the story window, districts, the disclaimer text.
+   - `/api/roads`: the road lines, sent once (about 500 KB compressed).
+   - `/api/replay/{hour}`: everything for one hour. Answers in about 10 milliseconds.
+4. **`frontend/`** — a React + TypeScript app built with Vite, with a MapLibre map.
+
+### Two flood runs, kept apart
+- **"What really happened":** the flood model driven by the recorded rain. Nothing on screen reads this directly. Only the simulated sensors do. It is still the simplified model; there is no real flood-depth data anywhere in this project.
+- **"What the system thinks":** the flood model driven by its own 1-hour rain forecast, then pulled toward the sensor readings each hour. This is what the map shows.
+- From the second one, the model is also run 6 hours ahead on forecast rain, every hour, to give "worst in the next 6 hours".
+
+### What you see on screen
+- A dark map of Dubai (CARTO dark basemap; if it cannot be reached, a plain dark background with our own roads).
+- Roads coloured **and** thickened by risk: thin blue-grey = clear, medium amber = caution, thick red = impassable. Thickness is there so colour is not the only signal.
+- Top left: the name and the permanent badge "Prototype — simulated sensors, simplified flood model".
+- Right: the clock (T–6 h … T+2 h), three views (now sensor-corrected / now model only / worst in next 6 h), and counts per class.
+- Bottom: the timeline scrubber from T–6 h (10:00) to T+2 h (18:00).
+
+### Problems found on the first screenshot, and what was done
+1. **Whole roads lit up from one wet spot.** A road was one OpenStreetMap "way", and some are kilometres long. One flooded cell painted the entire way red. Fix: every road longer than 400 m is cut into equal pieces of at most 400 m (`MAX_SEGMENT_M`). Segments went from 16,242 to **20,577**; the longest now crosses 5 grid cells instead of 93. Underpass segments went from 132 to 149 for the same reason.
+2. **The map credit overlapped the timeline.** Moved above it.
+3. **Newer library versions than expected** (MapLibre 6, TypeScript 7, Vite 8). MapLibre 6 changed how it is imported and how its background worker is loaded; the code was written against the installed version after checking it.
+
+### Numbers now (after the road split)
+| Moment | Hour | Impassable | Caution | Forecast impassable within 6 h |
+|---|---|---|---|---|
+| T–6 | 10:00 | 598 | 401 | 1,512 |
+| T–2 | 14:00 | 1,122 | 710 | 1,980 |
+| T–0 | 16:00 | 1,422 | 925 | 2,082 |
+| T+2 | 18:00 | 1,784 | 1,020 | 2,085 |
+
+Of 20,577 segments. Sensors reading above 30 cm at T–0: 14 of 60.
+
+### Screenshots
+`data/previews/app_T-6h_1920.png` and `data/previews/app_T-0_1920.png` (1920 × 1080). The `data/` folder is not uploaded to GitHub, so these are on this laptop only.
+
+### Tests
+54 backend tests, all passing. New ones cover: timeline shapes, no negative or missing values, bridges staying dry, the API answers, road ids matching risk positions, and road splitting. The frontend passes its type check. There are no automated frontend tests yet.
+
+### Known limits after Phase 3
+- **The sensor correction is almost invisible.** Sensors cover 60 of 16,844 land cells, so "sensor-corrected" and "model only" give nearly the same road counts. The mechanism works; its effect on the map is tiny.
+- **Roads were slow to appear once.** On one page load the coloured roads were still missing after 7 seconds; on reload they were there. Not yet investigated.
+- **Not on screen yet:** rainfall layer, sensors, Play button, About panel. The data for rainfall and sensors is already in the API; drawing them is Phase 6.
+- **The laptop ran low on memory** and Claude Code stopped both servers after the screenshots were taken. Nothing was lost.
+
+### How to run it
+Two terminals:
+```
+cd backend
+.venv/Scripts/python -m uvicorn app.main:app --port 8000
+```
+```
+cd frontend
+npm run dev
+```
+Then open http://localhost:5173
