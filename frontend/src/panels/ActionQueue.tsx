@@ -7,6 +7,8 @@ interface Props {
   pumpsAvailable: number;
   lastPlan: PlanResult | null;
   busy: boolean;
+  /** True while Demo mode is approving on its own. */
+  demo: boolean;
   error: string | null;
   onPlan: () => void;
   onDecide: (id: string, decision: "approve" | "reject") => void;
@@ -30,6 +32,11 @@ function plannerNote(plan: PlanResult): string {
   if (plan.planner === "llm") return "Planned by the LLM (Azure OpenAI), then rule-checked.";
   if (plan.fallback_reason) return "LLM plan failed its checks. Rule-based planner used instead.";
   return "Planned by the rule-based planner (no LLM key set).";
+}
+
+function decisionLabel(action: Action): string {
+  if (action.status === "rejected") return "✕ Rejected by operator";
+  return action.decided_by === "demo_auto" ? "✓ Auto-approved for demo" : "✓ Approved by operator";
 }
 
 function ActionCard({ meta, action, busy, onDecide }: {
@@ -77,8 +84,8 @@ function ActionCard({ meta, action, busy, onDecide }: {
           </button>
         </div>
       ) : (
-        <div className={`action-status ${action.status}`}>
-          {action.status === "approved" ? "✓ Approved by operator" : "✕ Rejected by operator"}
+        <div className={`action-status ${action.status} ${action.decided_by ?? ""}`}>
+          {decisionLabel(action)}
         </div>
       )}
     </li>
@@ -86,7 +93,8 @@ function ActionCard({ meta, action, busy, onDecide }: {
 }
 
 export function ActionQueue(props: Props) {
-  const { meta, actions, pumpsAvailable, lastPlan, busy, error, onPlan, onDecide, onReset } = props;
+  const { meta, actions, pumpsAvailable, lastPlan, busy, demo, error } = props;
+  const { onPlan, onDecide, onReset } = props;
   const sorted = [...actions].sort(
     (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.id.localeCompare(a.id),
   );
@@ -99,12 +107,17 @@ export function ActionQueue(props: Props) {
       </div>
       <div className="queue-tools">
         <button type="button" className="primary" disabled={busy} onClick={onPlan}>
-          {busy ? "Working…" : "Ask agent for a plan"}
+          {busy && !demo ? "Working…" : "Ask agent for a plan"}
         </button>
         <button type="button" className="ghost" disabled={busy} onClick={onReset}>
           Reset
         </button>
       </div>
+      {demo && (
+        <p className="demo-note" role="status">
+          Demo mode: proposals are being auto-approved. No operator is deciding.
+        </p>
+      )}
       <p className="note">
         Nothing takes effect until you approve it. Pumps available: {pumpsAvailable} (mock fleet).
         {lastPlan && ` ${plannerNote(lastPlan)}`}

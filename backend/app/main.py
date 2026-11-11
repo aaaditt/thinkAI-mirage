@@ -19,6 +19,7 @@ from app.city import ActionError, Planner, Session
 from app.ground import risk_class
 from app.models import (
     Action,
+    DecidedBy,
     District,
     Meta,
     PlanResult,
@@ -142,9 +143,9 @@ def create_app(
         allow_headers=["*"],
     )
 
-    def decide(request: Request, action_id: str, approve: bool) -> Action:
+    def decide(request: Request, action_id: str, approve: bool, by: DecidedBy) -> Action:
         try:
-            return request.app.state.session.decide(action_id, approve)
+            return request.app.state.session.decide(action_id, approve, by)
         except ActionError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -168,12 +169,13 @@ def create_app(
         return request.app.state.session.plan(hour)
 
     @app.post("/api/actions/{action_id}/approve")
-    def approve(action_id: str, request: Request) -> Action:
-        return decide(request, action_id, approve=True)
+    def approve(action_id: str, request: Request, by: DecidedBy = "operator") -> Action:
+        """`?by=demo_auto` is sent only by Demo mode, and is shown on the card."""
+        return decide(request, action_id, approve=True, by=by)
 
     @app.post("/api/actions/{action_id}/reject")
     def reject(action_id: str, request: Request) -> Action:
-        return decide(request, action_id, approve=False)
+        return decide(request, action_id, approve=False, by="operator")
 
     @app.post("/api/reset")
     def reset(request: Request) -> dict[str, bool]:

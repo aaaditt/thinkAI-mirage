@@ -71,6 +71,9 @@ class Evidence(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+DecidedBy = Literal["operator", "demo_auto"]
+
+
 class ProposedAction(BaseModel):
     """What a planner may output. Nothing here has any effect until approved."""
 
@@ -91,6 +94,9 @@ class Action(ProposedAction):
 
     id: str
     status: Literal["proposed", "approved", "rejected"] = "proposed"
+    # Who decided. "demo_auto" marks Demo mode's hands-free approvals, so the
+    # screen can label them and never pass them off as an operator's decision.
+    decided_by: DecidedBy | None = None
     label: str
     lat: float
     lon: float

@@ -24,6 +24,7 @@ from app import config
 from app.ground import cells_by_segment, format_depth
 from app.models import (
     Action,
+    DecidedBy,
     Alert,
     AtRiskSite,
     Depot,
@@ -662,8 +663,9 @@ class Session:
         self.actions.append(action)
         return action
 
-    def decide(self, action_id: str, approve: bool) -> Action:
-        """The ONLY place an action's status changes, and only by an explicit call."""
+    def decide(self, action_id: str, approve: bool, by: DecidedBy = "operator") -> Action:
+        """The ONLY place an action's status changes, and only by an explicit call.
+        `by` records whether an operator clicked or Demo mode approved it."""
         with self._lock:
             action = next((a for a in self.actions if a.id == action_id), None)
             if action is None:
@@ -671,12 +673,12 @@ class Session:
             if action.status != "proposed":
                 raise ActionError(f"{action_id} was already {action.status}")
             if not approve:
-                action.status = "rejected"
+                action.status, action.decided_by = "rejected", by
                 return action
             if (action.type == "stage_pump"
                     and build_inventory(self.actions).pumps_available < 1):
                 raise ActionError("no pumps left to stage")
-            action.status = "approved"
+            action.status, action.decided_by = "approved", by
             self._apply(action)
             return action
 

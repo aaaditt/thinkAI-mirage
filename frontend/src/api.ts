@@ -84,6 +84,8 @@ export interface Action {
   id: string;
   type: ActionType;
   status: "proposed" | "approved" | "rejected";
+  /** "demo_auto" = approved by Demo mode, not by a person. */
+  decided_by: "operator" | "demo_auto" | null;
   target: string;
   label: string;
   lat: number;
@@ -126,4 +128,7 @@ export const fetchFrame = (hour: number) => getJson<ReplayFrame>(`/api/replay/${
 export const requestPlan = (hour: number) => request<PlanResult>(`/api/plan/${hour}`, "POST");
 export const decideAction = (id: string, decision: "approve" | "reject") =>
   request<Action>(`/api/actions/${id}/${decision}`, "POST");
+/** Demo mode only: approve and mark the action as auto-approved. */
+export const autoApproveAction = (id: string) =>
+  request<Action>(`/api/actions/${id}/approve?by=demo_auto`, "POST");
 export const resetReplay = () => request<{ ok: boolean }>("/api/reset", "POST");

@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 to 5 are finished, tested, and pushed to GitHub. All four engines (Sky, Ground, City, Shield) work end to end. Phase 6 (polish for the demo) is next.
+**Where we are right now:** Phases 1 to 6 are finished, tested, and pushed to GitHub. All four engines (Sky, Ground, City, Shield) work end to end, the screen is polished for the demo, and Demo mode runs the whole story hands-free. Phase 7 (make it safe to present) is next.
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -15,7 +15,7 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 3 | API and a bare map | Done |
 | 4 | The agent that proposes actions | Done (LLM path untested against a live key) |
 | 5 | Insurance payouts | Done |
-| 6 | Polish for the demo | Not started |
+| 6 | Polish for the demo | Done |
 | 7 | Make it safe to present | Not started |
 
 ---
@@ -434,3 +434,53 @@ Running total: AED 280,000 already paid when the demo window opens at 10:00; AED
 
 ### Screenshot
 `data/previews/app_shield_T-0_1920.png` (on this laptop only).
+
+---
+
+## Phase 6 — Polish for the demo
+
+No new data was downloaded. This phase is almost all frontend, plus one small backend change.
+
+### What was built, in order
+1. **Who approved is now recorded** (backend). Each action carries `decided_by`: `operator` or `demo_auto`. The approve route takes `?by=demo_auto`, which only Demo mode sends. Anything else is refused.
+2. **New layout.** The right-hand panel was too crowded, so the screen now has three areas around the map:
+   - **Left column:** Sky (rain now and forecast), the phone-style alert card, Shield payouts.
+   - **Right panel:** the big T-minus clock, the road view switch, the legend, the agent's queue.
+   - **Bottom bar:** Play/Pause, speed, and the timeline.
+3. **Rainfall layer** on the map: a soft cyan haze, one pixel per block of grid cells, stretched over the study area.
+4. **Sensors on the map:** 60 small rings. A ring fills amber or red and grows as its reading rises. Hovering shows the reading.
+5. **Sky card:** seven bars, "now" plus +1 h to +6 h, showing area-mean rain. Clicking a bar puts that rain field on the map. Forecast bars are hatched so "simulated" does not depend on colour.
+6. **Phone-style alert card:** shows the latest approved area alert, with "In-app preview only. Nothing is sent to any phone."
+7. **Play / Pause with speed** (0.5×, 1×, 2×). At 1× each hour stays for 2.5 seconds. Play stops at T+2 h.
+8. **Demo mode** button (see below).
+9. **About drawer:** what is real, what is simulated, the model's limits, the human-in-the-loop rule, data credits.
+10. **README.md** written: what it is, how to run it, real vs simulated, limits, credits.
+
+### How Demo mode works
+- It resets the replay, then for each hour from T–6 h to T+2 h: shows the hour, asks the agent for a plan, pauses so the proposals can be read, approves them one by one, then reloads the map.
+- Every approval it makes is marked on the server as `demo_auto` and shown as **"Auto-approved for demo"** in an amber dashed box on the card. The alert card says the same. A banner in the queue says no operator is deciding.
+- While it runs, the Approve/Reject buttons, Play and the scrubber are locked. "Stop demo" ends it at once.
+- **Measured run time: about 95 seconds at 1×** (the target was about 90). Each hour is budgeted 10 seconds; hours with many approvals run a little over. At 2× it took 59 seconds.
+- In one full run it approved 52 actions. Payouts ended at AED 380,000, the same as with no actions: the pumps did not stop any payout trigger.
+
+### Problems found and fixed
+1. **The map did not refit when the window changed size.** Found when the browser went from 1366 × 768 to 1920 × 1080 and the city stayed small. This would have happened when going full screen on the projector. The map now refits on every resize.
+2. **A frame could arrive out of order** if two requests for different hours overlapped. Only the newest request may now update the screen.
+3. **The rain layer hid the roads at the peak hour.** Its opacity was lowered.
+
+### Layout check
+Checked in a real browser at both sizes. At 1366 × 768 everything fits with no page scroll; the payout list and the queue scroll inside their own cards, and the payout list shows about two entries at a time.
+
+### Tests
+122 backend tests, all passing. 3 are new: an operator approval is recorded as `operator`; a Demo mode approval is recorded as `demo_auto`; an unknown decider is refused and the action stays proposed. The frontend passes its type check and production build. There are no automated frontend tests; the screen was checked by running it.
+
+### Known limits
+- **The rain haze is a hard-edged rectangle.** That is the edge of the study area, not of the rain. The legend says "study area".
+- **The rain looks almost uniform.** The source has cells 7 to 8 km wide, so there is little spatial detail to show.
+- **After a full demo the map is busy:** dozens of CLOSED and PUMP markers, some overlapping, more so at 1366 × 768.
+- **Changing speed during Demo mode is locked.** Pick the speed before starting.
+- **The basemap and fonts still need internet.** Offline behaviour is Phase 7.
+- **The LLM planner is still untested against a live Azure key.**
+
+### Screenshots
+On this laptop only, in `data/previews/`: `app_phase6_T-0_1920.png`, `app_phase6_T-0_1366.png`, `app_phase6_about_1366.png`, and `app_demo_T-0_1920.png` (Demo mode running).

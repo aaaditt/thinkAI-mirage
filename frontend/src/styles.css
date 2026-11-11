@@ -1,6 +1,6 @@
 :root {
   --bg: #0b1220;
-  --panel: rgba(11, 18, 32, 0.88);
+  --panel: rgba(11, 18, 32, 0.9);
   --line: rgba(230, 236, 243, 0.14);
   --cyan: #3ccfe0;
   --amber: #f2a93b;
@@ -11,10 +11,22 @@
   --font-head: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --font-body: Inter, "Segoe UI", system-ui, sans-serif;
+  /* Layout: floating panels around the map. */
+  --gap: 16px;
+  --left-width: 288px;
+  --right-width: 360px;
+  --top-height: 40px;
+  --bottom-height: 96px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Thin dark scrollbars inside the panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(230, 236, 243, 0.25) transparent;
 }
 
 html,
@@ -30,6 +42,49 @@ body {
   font-family: var(--font-body);
   font-size: 14px;
   overflow: hidden;
+}
+
+h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+button {
+  font: inherit;
+  color: var(--sand);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.ghost {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  font-weight: 600;
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: var(--cyan);
+}
+
+.note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 .app {
@@ -59,20 +114,22 @@ body {
 
 .topbar {
   position: absolute;
-  top: 16px;
-  left: 60px;
+  top: var(--gap);
+  left: var(--gap);
+  right: calc(var(--right-width) + 2 * var(--gap));
+  height: var(--top-height);
   display: flex;
   align-items: center;
-  gap: 16px;
-  pointer-events: none;
+  gap: 12px;
 }
 
 .topbar h1 {
-  margin: 0;
+  margin: 0 4px 0 0;
   font-family: var(--font-head);
   font-size: 26px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .topbar h1 span {
@@ -85,56 +142,311 @@ body {
   padding: 6px 12px;
   border: 1px solid var(--amber);
   border-radius: 999px;
-  background: rgba(242, 169, 59, 0.14);
+  background: rgba(40, 28, 8, 0.92);
   color: var(--amber);
   font-family: var(--font-mono);
   font-size: 12px;
+  white-space: nowrap;
 }
 
-/* ---------- right panel ---------- */
+.demo-button {
+  margin-left: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--cyan);
+  border-radius: 8px;
+  background: var(--cyan);
+  color: #06202a;
+  font-weight: 700;
+  white-space: nowrap;
+}
 
-.panel {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 320px;
-  padding: 20px;
+.demo-button.running {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: #1a1204;
+}
+
+/* ---------- shared card look ---------- */
+
+.card,
+.phone,
+.payouts,
+.panel,
+.bottombar {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel);
   backdrop-filter: blur(8px);
 }
 
-.clock-offset {
-  font-family: var(--font-head);
-  font-size: 56px;
-  font-weight: 700;
-  line-height: 1;
+.card-head,
+.queue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- left column: Sky, alert preview, Shield ---------- */
+
+.left {
+  position: absolute;
+  top: calc(var(--top-height) + 2 * var(--gap));
+  left: var(--gap);
+  bottom: calc(var(--bottom-height) + 2 * var(--gap));
+  width: var(--left-width);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.left > * {
+  flex: none;
+  padding: 14px;
+  pointer-events: auto;
+}
+
+.bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.bar {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 4px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.bar:hover {
+  border-color: var(--line);
+}
+
+.bar.active {
+  border-color: var(--cyan);
+  background: rgba(60, 207, 224, 0.12);
+  color: var(--sand);
+}
+
+.bar-track {
+  display: flex;
+  align-items: flex-end;
+  width: 14px;
+  height: 40px;
+  border-radius: 3px;
+  background: rgba(230, 236, 243, 0.07);
+}
+
+.bar-fill {
+  width: 100%;
+  min-height: 1px;
+  border-radius: 3px;
+  background: var(--cyan);
+}
+
+/* Forecast bars are hatched, so "simulated" does not rely on colour. */
+.bar-fill.forecast {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--cyan) 0 3px,
+    rgba(60, 207, 224, 0.35) 3px 6px
+  );
+}
+
+/* Phone-style preview of the latest approved alert. */
+.left > .phone {
+  padding: 8px 12px 12px;
+  border-radius: 22px;
+  border-color: rgba(230, 236, 243, 0.3);
+  background: #060b15;
+}
+
+.phone-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.phone-notch {
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(230, 236, 243, 0.22);
+}
+
+.bubble {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(60, 207, 224, 0.14);
+  border: 1px solid rgba(60, 207, 224, 0.4);
+}
+
+.bubble-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
   color: var(--cyan);
 }
 
-.clock-time {
-  margin-top: 8px;
+.bubble-head span {
   font-family: var(--font-mono);
+}
+
+.bubble p {
+  margin: 6px 0 0;
   font-size: 13px;
+  line-height: 1.4;
+}
+
+.phone-empty {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.phone-foot {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Shield payouts take what is left of the column and scroll inside. */
+.left > .payouts {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.payout-total {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--amber);
+}
+
+.payout-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  margin: 10px -6px 0 0;
+  padding: 0 6px 0 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.payout-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--amber);
+  font-size: 12px;
+}
+
+.payout-when {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.payout-amount {
+  font-family: var(--font-mono);
+  color: var(--amber);
+}
+
+.payout-who {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.payout-why {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+/* ---------- right panel: clock, road view, legend, agent queue ---------- */
+
+.panel {
+  position: absolute;
+  top: var(--gap);
+  right: var(--gap);
+  width: var(--right-width);
+  max-height: calc(100% - var(--bottom-height) - 3 * var(--gap));
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.panel > * {
+  flex: none;
+}
+
+.clock {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.clock-offset {
+  font-family: var(--font-head);
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.clock-time {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.clock-caption {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--muted);
 }
 
 .views {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
-  margin: 20px 0 16px;
+  margin: 14px 0 12px;
 }
 
 .view {
-  padding: 8px 12px;
+  padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: transparent;
-  color: var(--sand);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  font-size: 12px;
 }
 
 .view:hover {
@@ -149,10 +461,11 @@ body {
 
 .legend {
   display: grid;
-  gap: 10px;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
+  font-size: 13px;
 }
 
 .legend li {
@@ -169,6 +482,7 @@ body {
 
 /* Swatch thickness matches the line widths on the map. */
 .swatch {
+  flex: none;
   width: 28px;
   border-radius: 4px;
 }
@@ -188,135 +502,27 @@ body {
   background: var(--clear-road);
 }
 
-.note {
-  margin: 16px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
+.swatch.sensor {
+  width: 10px;
+  height: 10px;
+  margin: 0 9px;
+  border: 2px solid var(--sand);
+  border-radius: 50%;
 }
 
-/* ---------- bottom timeline ---------- */
-
-.bottombar {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  padding: 14px 20px 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel);
-  backdrop-filter: blur(8px);
+.swatch.rain {
+  height: 10px;
+  background: linear-gradient(90deg, rgba(60, 207, 224, 0.08), rgba(60, 207, 224, 0.7));
 }
 
-.timeline input[type="range"] {
-  width: 100%;
-  margin: 0;
-  accent-color: var(--cyan);
-}
-
-.timeline-ticks {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-}
-
-.tick {
-  display: grid;
-  gap: 2px;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.tick:hover {
-  color: var(--sand);
-}
-
-.tick.active {
-  color: var(--cyan);
-  background: rgba(60, 207, 224, 0.12);
-}
-
-.tick-clock {
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 2px;
-}
-
-.maplibregl-ctrl-attrib {
-  font-family: var(--font-body);
-}
-
-/* Keep the map attribution clear of the timeline bar. */
-.maplibregl-ctrl-bottom-right {
-  bottom: 104px;
-  right: 6px;
-}
-
-/* ---------- right panel: fits the height, queue scrolls inside ---------- */
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  width: 360px;
-  max-height: calc(100% - 152px);
-}
-
-.panel .clock,
-.panel .views,
-.panel .legend {
-  flex: none;
-}
-
-.views {
-  grid-template-columns: repeat(3, 1fr);
-  margin: 14px 0 12px;
-}
-
-.view {
-  padding: 6px 8px;
-  font-size: 12px;
-  text-align: center;
-}
-
-.legend {
-  gap: 6px;
-  font-size: 13px;
-}
-
-/* ---------- agent queue ---------- */
-
-.queue {
+.panel > .queue {
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
-}
-
-.queue-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.queue-head h2 {
-  margin: 0;
-  font-family: var(--font-head);
-  font-size: 17px;
-  font-weight: 700;
 }
 
 .queue-count {
@@ -336,15 +542,7 @@ input:focus-visible {
   border-radius: 8px;
   border: 1px solid var(--line);
   background: transparent;
-  color: var(--sand);
-  font: inherit;
   font-weight: 600;
-  cursor: pointer;
-}
-
-.queue button:disabled {
-  opacity: 0.5;
-  cursor: wait;
 }
 
 .queue button.primary {
@@ -354,8 +552,15 @@ input:focus-visible {
   color: #06202a;
 }
 
-.queue .note {
+.demo-note {
   margin: 10px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  background: rgba(242, 169, 59, 0.14);
+  color: var(--amber);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .queue-error {
@@ -373,11 +578,11 @@ input:focus-visible {
 .actions {
   display: grid;
   gap: 10px;
+  min-height: 0;
   margin: 12px -6px 0 0;
   padding: 0 6px 0 0;
   list-style: none;
   overflow-y: auto;
-  min-height: 0;
 }
 
 .action {
@@ -496,7 +701,205 @@ input:focus-visible {
   color: var(--muted);
 }
 
-/* ---------- map markers (approved actions only) ---------- */
+/* Demo mode's approvals are amber and boxed: never mistaken for an operator's. */
+.action-status.demo_auto {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 1px dashed var(--amber);
+  border-radius: 6px;
+  color: var(--amber);
+}
+
+/* ---------- bottom bar: transport and timeline ---------- */
+
+.bottombar {
+  position: absolute;
+  left: var(--gap);
+  right: var(--gap);
+  bottom: var(--gap);
+  height: var(--bottom-height);
+  padding: 14px 20px;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 100%;
+}
+
+.transport {
+  display: grid;
+  gap: 6px;
+  flex: none;
+  width: 132px;
+}
+
+.play {
+  padding: 8px 12px;
+  border: 1px solid var(--cyan);
+  border-radius: 8px;
+  background: rgba(60, 207, 224, 0.14);
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.speeds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.speed {
+  padding: 3px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.speed.active {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.scrubber {
+  flex: 1;
+  min-width: 0;
+}
+
+.scrubber input[type="range"] {
+  display: block;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--cyan);
+}
+
+.timeline-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.tick {
+  display: grid;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tick:hover:not(:disabled) {
+  color: var(--sand);
+}
+
+.tick.active {
+  color: var(--cyan);
+  background: rgba(60, 207, 224, 0.12);
+  opacity: 1;
+}
+
+.tick-clock {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+/* ---------- About drawer ---------- */
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(3, 6, 12, 0.55);
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(480px, 100%);
+  padding: 24px 28px;
+  border-left: 1px solid var(--line);
+  background: var(--bg);
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drawer-head h2 {
+  font-size: 24px;
+}
+
+.drawer h3 {
+  margin: 20px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.drawer p {
+  margin: 12px 0 0;
+}
+
+.drawer h3 + p {
+  margin-top: 0;
+}
+
+.drawer ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.drawer li + li {
+  margin-top: 4px;
+}
+
+/* ---------- MapLibre controls, kept clear of the floating panels ---------- */
+
+.maplibregl-ctrl-top-left {
+  top: calc(var(--top-height) + var(--gap) + 6px);
+  left: calc(var(--left-width) + var(--gap) + 2px);
+}
+
+.maplibregl-ctrl-bottom-left {
+  bottom: calc(var(--bottom-height) + var(--gap) + 2px);
+  left: calc(var(--left-width) + var(--gap) + 2px);
+}
+
+.maplibregl-ctrl-attrib {
+  font-family: var(--font-body);
+}
+
+.maplibregl-popup-content {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--sand);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.maplibregl-popup-tip {
+  display: none;
+}
+
+/* ---------- map markers (approved actions and payouts only) ---------- */
 
 .marker {
   font-family: var(--font-mono);
@@ -530,73 +933,6 @@ input:focus-visible {
   box-shadow: 0 0 0 2px rgba(11, 18, 32, 0.9);
 }
 
-/* ---------- Shield payouts ---------- */
-
-.payouts {
-  flex: none;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.payouts .queue-head h2 {
-  margin: 0;
-  font-family: var(--font-head);
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.payout-total {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--amber);
-}
-
-.payouts .note {
-  margin: 6px 0 0;
-}
-
-.payout-list {
-  display: grid;
-  gap: 8px;
-  max-height: 132px;
-  margin: 10px -6px 0 0;
-  padding: 0 6px 0 0;
-  list-style: none;
-  overflow-y: auto;
-}
-
-.payout-list li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 10px;
-  padding-left: 10px;
-  border-left: 2px solid var(--amber);
-  font-size: 12px;
-}
-
-.payout-when {
-  font-family: var(--font-mono);
-  color: var(--muted);
-}
-
-.payout-amount {
-  font-family: var(--font-mono);
-  color: var(--amber);
-}
-
-.payout-who {
-  grid-column: 1 / -1;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.payout-why {
-  grid-column: 1 / -1;
-  color: var(--muted);
-}
-
 /* Payout pin: a labelled tag with a pointer, so it reads without colour. */
 .payout-pin {
   position: relative;
@@ -620,4 +956,52 @@ input:focus-visible {
   border-right: 1px solid var(--amber);
   border-bottom: 1px solid var(--amber);
   background: var(--bg);
+}
+
+/* ---------- small screens (1366 x 768) ---------- */
+
+@media (max-width: 1500px), (max-height: 860px) {
+  :root {
+    --gap: 12px;
+    --left-width: 264px;
+    --right-width: 336px;
+    --bottom-height: 88px;
+  }
+
+  .topbar h1 {
+    font-size: 22px;
+  }
+
+  .badge {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .left > * {
+    padding: 12px;
+  }
+
+  .bar-track {
+    height: 28px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .clock-offset {
+    font-size: 48px;
+  }
+
+  .legend {
+    font-size: 12px;
+  }
+
+  .bottombar {
+    padding: 10px 16px;
+  }
+
+  .marker {
+    font-size: 9px;
+  }
 }

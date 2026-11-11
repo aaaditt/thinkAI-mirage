@@ -428,5 +428,25 @@ def test_api_approve_reject_and_reset(client):
     assert client.get("/api/replay/10").json()["actions"] == []
 
 
+def test_api_records_an_operator_decision(client):
+    action = client.post("/api/plan/10").json()["actions"][0]
+    assert action["decided_by"] is None  # proposed: nobody has decided yet
+    approved = client.post(f"/api/actions/{action['id']}/approve").json()
+    assert (approved["status"], approved["decided_by"]) == ("approved", "operator")
+
+
+def test_api_labels_a_demo_mode_approval(client):
+    first = client.post("/api/plan/10").json()["actions"][0]["id"]
+    auto = client.post(f"/api/actions/{first}/approve?by=demo_auto").json()
+    assert (auto["status"], auto["decided_by"]) == ("approved", "demo_auto")
+    assert client.get("/api/replay/10").json()["actions"][0]["decided_by"] == "demo_auto"
+
+
+def test_api_rejects_an_unknown_decider(client):
+    first = client.post("/api/plan/10").json()["actions"][0]["id"]
+    assert client.post(f"/api/actions/{first}/approve?by=agent").status_code == 422
+    assert client.get("/api/replay/10").json()["actions"][0]["status"] == "proposed"
+
+
 def test_api_plan_rejects_hours_outside_the_day(client):
     assert client.post("/api/plan/24").status_code == 404
