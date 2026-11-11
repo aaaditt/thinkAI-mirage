@@ -529,3 +529,95 @@ input:focus-visible {
   background: var(--cyan);
   box-shadow: 0 0 0 2px rgba(11, 18, 32, 0.9);
 }
+
+/* ---------- Shield payouts ---------- */
+
+.payouts {
+  flex: none;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.payouts .queue-head h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.payout-total {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--amber);
+}
+
+.payouts .note {
+  margin: 6px 0 0;
+}
+
+.payout-list {
+  display: grid;
+  gap: 8px;
+  max-height: 132px;
+  margin: 10px -6px 0 0;
+  padding: 0 6px 0 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.payout-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--amber);
+  font-size: 12px;
+}
+
+.payout-when {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.payout-amount {
+  font-family: var(--font-mono);
+  color: var(--amber);
+}
+
+.payout-who {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.payout-why {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+/* Payout pin: a labelled tag with a pointer, so it reads without colour. */
+.payout-pin {
+  position: relative;
+  display: block;
+  margin-bottom: 5px;
+  padding: 2px 5px;
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--amber);
+}
+
+.payout-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid var(--amber);
+  border-bottom: 1px solid var(--amber);
+  background: var(--bg);
+}

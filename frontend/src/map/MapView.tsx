@@ -11,7 +11,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
-import { type Action, fetchRoads, type Meta } from "../api";
+import { type Action, fetchRoads, type Meta, type PayoutEvent } from "../api";
 import { COLORS, loadBaseStyle } from "./style";
 
 setWorkerUrl(workerUrl);
@@ -24,6 +24,7 @@ interface Props {
   /** One digit per road segment: 0 clear, 1 caution, 2 impassable. */
   risk: string;
   actions: Action[];
+  payouts: PayoutEvent[];
   hour: number;
 }
 
@@ -52,6 +53,18 @@ function markerElement(action: Action): HTMLElement {
   return element;
 }
 
+function payoutPin(business: string, amountAed: number): HTMLElement {
+  const element = document.createElement("div");
+  // MapLibre positions this root element itself, so the pin is drawn by a child.
+  element.className = "marker";
+  element.title = `Payout: ${business}, AED ${amountAed.toLocaleString("en-US")}`;
+  const pin = document.createElement("span");
+  pin.className = "payout-pin";
+  pin.textContent = "AED";
+  element.append(pin);
+  return element;
+}
+
 function addRoadLayer(map: MapLibreMap, roads: FeatureCollection): void {
   map.addSource(ROADS, {
     type: "geojson",
@@ -77,7 +90,7 @@ function addRoadLayer(map: MapLibreMap, roads: FeatureCollection): void {
   map.addLayer(layer);
 }
 
-export function MapView({ meta, risk, actions, hour }: Props) {
+export function MapView({ meta, risk, actions, payouts, hour }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const applied = useRef("");
@@ -143,6 +156,22 @@ export function MapView({ meta, risk, actions, hour }: Props) {
     );
     return () => markers.forEach((marker) => marker.remove());
   }, [ready, actions, hour]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const policies = new Map(meta.policies.map((policy) => [policy.id, policy]));
+    const pins = payouts.flatMap((event) => {
+      const policy = policies.get(event.policy_id);
+      if (!policy) return [];
+      return [
+        new Marker({ element: payoutPin(policy.business, event.amount_aed), anchor: "bottom" })
+          .setLngLat([policy.lon, policy.lat])
+          .addTo(map),
+      ];
+    });
+    return () => pins.forEach((pin) => pin.remove());
+  }, [ready, payouts, meta]);
 
   return (
     <>

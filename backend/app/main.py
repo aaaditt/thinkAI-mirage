@@ -22,6 +22,7 @@ from app.models import (
     District,
     Meta,
     PlanResult,
+    Policy,
     ReplayFrame,
     RiskCounts,
     SensorReading,
@@ -52,7 +53,8 @@ def roads_json(world: World) -> bytes:
     return json.dumps(collection, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
-def build_meta(world: World) -> Meta:
+def build_meta(session: Session) -> Meta:
+    world = session.world
     grid, timeline, zero = world.scenario.grid, world.timeline, world.scenario.zero_hour
     return Meta(
         disclaimer=config.DISCLAIMER,
@@ -80,6 +82,7 @@ def build_meta(world: World) -> Meta:
         districts=[
             District(name=name, lat=lat, lon=lon) for name, (lat, lon) in config.DISTRICTS.items()
         ],
+        policies=session.policies,
     )
 
 
@@ -87,6 +90,7 @@ def build_frame(session: Session, hour: int) -> ReplayFrame:
     scenario, timeline = session.world.scenario, session.timeline
     classes = risk_class(timeline.segment_cm[hour])
     counts = np.bincount(classes, minlength=3)
+    payouts = session.payouts(hour)
     return ReplayFrame(
         hour=hour,
         offset_hours=hour - scenario.zero_hour,
@@ -109,6 +113,8 @@ def build_frame(session: Session, hour: int) -> ReplayFrame:
         closed_segments=session.closed_segments(hour),
         alerts=session.alerts(hour),
         pumps_available=session.situation(hour).inventory.pumps_available,
+        payouts=payouts,
+        payout_total_aed=sum(event.amount_aed for event in payouts),
     )
 
 
@@ -117,12 +123,15 @@ def check_hour(session: Session, hour: int) -> None:
         raise HTTPException(status_code=404, detail="hour is outside the replay window")
 
 
-def create_app(world: World | None = None, planner: Planner | None = None) -> FastAPI:
+def create_app(
+    world: World | None = None, planner: Planner | None = None,
+    policies: list[Policy] | None = None,
+) -> FastAPI:
     """Build the app. Pass a `world` in tests; otherwise it is loaded from data/."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.session = Session(world or load_world(), planner)
+        app.state.session = Session(world or load_world(), planner, policies)
         app.state.roads = roads_json(app.state.session.world)
         yield
 
@@ -141,7 +150,7 @@ def create_app(world: World | None = None, planner: Planner | None = None) -> Fa
 
     @app.get("/api/meta")
     def meta(request: Request) -> Meta:
-        return build_meta(request.app.state.session.world)
+        return build_meta(request.app.state.session)
 
     @app.get("/api/roads")
     def roads(request: Request) -> Response:

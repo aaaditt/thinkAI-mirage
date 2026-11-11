@@ -13,6 +13,7 @@ from app.sensors import place_sensors
 from app.sky import HistoricalRainSource, story_zero_hour
 
 SMALL_GRID = Grid(lat_min=25.0, lat_max=25.1, lon_min=55.0, lon_max=55.1, rows=10, cols=10)
+SMALL_DISTRICTS = {"West End": (25.05, 55.03), "East End": (25.05, 55.07)}
 
 
 def row_road(row: int, underpass: bool = False, bridge: bool = False) -> dict:
@@ -41,7 +42,7 @@ def small_world() -> World:
     terrain = build_terrain(elevation, features, SMALL_GRID)
     source = HistoricalRainSource(rain)
     sensors = place_sensors(
-        features, SMALL_GRID, ~terrain.open_water, np.random.default_rng(0)
+        features, SMALL_GRID, terrain, np.random.default_rng(0), SMALL_DISTRICTS
     )
     scenario = Scenario(
         grid=SMALL_GRID,

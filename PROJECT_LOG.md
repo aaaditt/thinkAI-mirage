@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 to 4 are finished, tested, and pushed to GitHub. The agent proposes pumps, closures and alerts, and nothing takes effect until you click Approve. Phase 5 (insurance payouts) is next.
+**Where we are right now:** Phases 1 to 5 are finished, tested, and pushed to GitHub. All four engines (Sky, Ground, City, Shield) work end to end. Phase 6 (polish for the demo) is next.
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -14,7 +14,7 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 2 | Rain forecast, flood model, simulated sensors | Done |
 | 3 | API and a bare map | Done |
 | 4 | The agent that proposes actions | Done (LLM path untested against a live key) |
-| 5 | Insurance payouts | Not started |
+| 5 | Insurance payouts | Done |
 | 6 | Polish for the demo | Not started |
 | 7 | Make it safe to present | Not started |
 
@@ -357,3 +357,80 @@ Not much. At the pumped underpasses the modelled depth at T–0 dropped by 2 to 
 
 ### Screenshots
 `data/previews/app_agent_proposed_1920.png` (ten proposals, map unchanged) and `data/previews/app_agent_approved_T-0_1920.png` (after approving, at T–0, with CLOSED and PUMP markers). On this laptop only.
+
+---
+
+## Phase 5 — Shield: parametric payouts
+
+No new data was downloaded. Every policy, business and amount is invented.
+
+### What was built, in order
+1. **Sensor placement was changed first** (`backend/app/sensors.py`). See "The problem found" below.
+2. **`backend/app/shield.py`** — mock policies and the payout trigger.
+3. **API:** `/api/meta` now lists the 40 mock policies; each hour's frame carries the payouts fired so far and the running total.
+4. **Frontend:** a "Shield payouts" panel with the running total and a list, and an "AED" pin on the map at each paid business.
+
+### The problem found, and the decision made
+- The 60 sensors from Phase 2 were placed at underpasses and at random road cells across the whole city. Almost none were in the three insured districts: zero within 2.5 km of Al Barsha, and the few near Al Quoz and Business Bay stayed dry.
+- With that layout Shield would have paid almost nothing, for a reason that has nothing to do with flooding.
+- **Decision:** a parametric product needs its gauge inside the insured zone. So 24 of the 60 sensors (8 per district) are now placed on road cells at **terrain low points** inside each district.
+- **Why this is not cheating:** the low points are chosen from elevation only (how far a cell sits below its neighbours). Flood results are never used to choose them. It mirrors how real gauges are sited: where water collects.
+- The sensor split is now 20 at underpasses, 24 district gauges, 16 other roads. Total still 60.
+- Side effect: the sensor correction now touches different cells, so road counts shifted slightly (for example 1,417 impassable at T–0, was 1,422).
+
+### How a policy works
+- 40 mock small businesses, spread over the three districts (14 / 13 / 13), each placed at random within 1.5 km of its district centre.
+- Each policy is tied to the **nearest gauge in its own district**. The distance is recorded: median about 1 km, largest about 1.8 km. That gap is real "basis risk": the business is paid on what the gauge reads, not on the water at its own door.
+- Three invented tiers:
+
+| Tier | Trigger | Payout |
+|---|---|---|
+| Basic | 30 cm or more in 1 hourly reading | AED 20,000 |
+| Sustained | 30 cm or more in 2 hourly readings in a row | AED 30,000 |
+| Severe | 50 cm or more in 1 hourly reading | AED 50,000 |
+
+- Each policy pays at most once, at the first hour its trigger is met.
+
+### The rule: payouts read sensors only
+- `shield.py` is handed a table of sensor readings and nothing else.
+- It does not import the forecast or the flood model at all. A test reads the file's imports and fails if that ever changes.
+- So a payout cannot be caused by a prediction, only by a (simulated) measurement.
+
+### Payout events for the full replay
+**10 of 40 policies paid, AED 380,000 in total.**
+
+| Hour | Policy | Tier | Measured | Gauge | Payout |
+|---|---|---|---|---|---|
+| 03:00 | Al Quoz Auto Garage 08 | Severe | 52 cm | S031 | AED 50,000 |
+| 03:00 | Al Quoz Cafe 14 | Severe | 52 cm | S031 | AED 50,000 |
+| 03:00 | Al Quoz Grocery 26 | Severe | 52 cm | S031 | AED 50,000 |
+| 03:00 | Al Barsha Phone Repair 31 | Basic | 42 cm | S023 | AED 20,000 |
+| 03:00 | Al Quoz Cafe 38 | Severe | 52 cm | S031 | AED 50,000 |
+| 04:00 | Al Quoz Auto Garage 11 | Sustained | 64 cm | S031 | AED 30,000 |
+| 04:00 | Al Barsha Warehouse 25 | Sustained | 68 cm | S023 | AED 30,000 |
+| 15:00 (T–1) | Al Quoz Bakery 20 | Sustained | 40 cm | S029 | AED 30,000 |
+| 16:00 (T–0) | Business Bay Auto Garage 03 | Basic | 52 cm | S038 | AED 20,000 |
+| 16:00 (T–0) | Business Bay Grocery 24 | Severe | 52 cm | S038 | AED 50,000 |
+
+Running total: AED 280,000 already paid when the demo window opens at 10:00; AED 380,000 from 16:00 onward.
+
+### What this means for the demo
+- **Seven payouts happen before the demo starts** (03:00 to 04:00, the early-morning wave). At T–6 the panel already shows AED 280,000.
+- **Three happen inside the window**, two of them exactly at T–0. That is the "sensors confirm the depth, payouts fire" moment.
+- **30 policies never pay.** Their gauge stayed under the trigger. Only 13 of the 24 district gauges are the nearest gauge to any policy, and several of those stay dry.
+
+### Problems found and fixed
+1. **Sensors not in the insured districts** (above).
+2. **Map pins drawn as full-width bars** (found in the browser check). The pin's style overrode the positioning MapLibre applies to markers. Fixed by styling an inner element.
+
+### Tests
+119 backend tests, all passing. 19 are new: the trigger at, below and above the threshold; "sustained" needing consecutive hours; one payout per policy; each policy reading only its own gauge; policies indexed to the nearest gauge in their own district; the imports check; and the API totals.
+
+### Known limits
+- **Readings are hourly snapshots.** "30 cm for 1 hour" means one hourly reading at or above 30 cm. There is nothing finer than an hour in this replay.
+- **Policies sharing a gauge pay together.** Four Al Quoz policies paid at the same moment off gauge S031. That is how an index product behaves, but it looks clustered.
+- **Pins can overlap** where paid businesses are close.
+- **The right-hand panel is getting crowded.** Payouts and proposals now share it. Phase 6 will sort out the layout, including at 1366 × 768.
+
+### Screenshot
+`data/previews/app_shield_T-0_1920.png` (on this laptop only).

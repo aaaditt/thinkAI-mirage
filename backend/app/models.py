@@ -43,6 +43,7 @@ class Meta(BaseModel):
     story: StoryWindow
     thresholds: Thresholds
     districts: list[District]
+    policies: list[Policy]
 
 
 class RiskCounts(BaseModel):
@@ -162,6 +163,31 @@ class Alert(BaseModel):
     issued_hour: int
 
 
+class Policy(BaseModel):
+    """A MOCK parametric policy. The business, trigger and amount are invented."""
+
+    id: str
+    business: str
+    district: str
+    lat: float
+    lon: float
+    tier: str
+    threshold_cm: float
+    duration_hours: int  # consecutive hourly readings at or above the threshold
+    amount_aed: int
+    sensor_id: str  # the gauge this policy is indexed to
+    sensor_distance_m: int  # gauge-to-business distance: the basis risk
+
+
+class PayoutEvent(BaseModel):
+    """Fired from measured (simulated sensor) depth only. No money moves anywhere."""
+
+    policy_id: str
+    hour: int
+    measured_cm: float
+    amount_aed: int
+
+
 class ReplayFrame(BaseModel):
     """Everything the screen needs for one hour.
 
@@ -182,3 +208,5 @@ class ReplayFrame(BaseModel):
     closed_segments: list[int]  # road segments closed by an APPROVED action at this hour
     alerts: list[Alert]  # approved alerts issued up to this hour, newest last
     pumps_available: int
+    payouts: list[PayoutEvent]  # every payout fired up to this hour, oldest first
+    payout_total_aed: int

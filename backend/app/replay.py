@@ -175,9 +175,7 @@ def load_scenario() -> Scenario:
         terrain=terrain,
         index=build_segment_index(features, GRID),
         source=source,
-        sensors=place_sensors(
-            features, GRID, ~terrain.open_water, np.random.default_rng(config.SEED)
-        ),
+        sensors=place_sensors(features, GRID, terrain, np.random.default_rng(config.SEED)),
         hours=config.HOURS,
         zero_hour=story_zero_hour(source),
     )

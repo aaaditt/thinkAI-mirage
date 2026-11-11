@@ -77,7 +77,7 @@ def main() -> None:
     print(f"cells per segment: median {np.median(sizes):.0f}, 95th pct "
           f"{np.percentile(sizes, 95):.0f}, max {sizes.max()}")
 
-    sensors = place_sensors(features, GRID, land, np.random.default_rng(config.SEED))
+    sensors = place_sensors(features, GRID, terrain, np.random.default_rng(config.SEED))
     readings = SimulatedDepthSensors(depths, sensors).read(peak)
     wet = sum(r.depth_cm > config.IMPASSABLE_DEPTH_CM for r in readings)
     print(f"sensors: {len(sensors)} placed, {sum(s.at_underpass for s in sensors)} at "

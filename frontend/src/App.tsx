@@ -12,6 +12,7 @@ import {
 } from "./api";
 import { MapView } from "./map/MapView";
 import { ActionQueue } from "./panels/ActionQueue";
+import { Payouts } from "./panels/Payouts";
 import { clockLabel, offsetLabel, Timeline } from "./panels/Timeline";
 
 type View = "risk" | "risk_uncorrected" | "risk_next_6h";
@@ -90,7 +91,13 @@ export function App() {
 
   return (
     <div className="app">
-      <MapView meta={meta} risk={shown} actions={frame?.actions ?? []} hour={hour} />
+      <MapView
+        meta={meta}
+        risk={shown}
+        actions={frame?.actions ?? []}
+        payouts={frame?.payouts ?? []}
+        hour={hour}
+      />
 
       <header className="topbar">
         <h1>
@@ -139,6 +146,12 @@ export function App() {
             <b>{count("0").toLocaleString()}</b>
           </li>
         </ul>
+
+        <Payouts
+          meta={meta}
+          payouts={frame?.payouts ?? []}
+          totalAed={frame?.payout_total_aed ?? 0}
+        />
 
         <ActionQueue
           meta={meta}

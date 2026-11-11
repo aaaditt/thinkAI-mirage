@@ -13,7 +13,7 @@ import numpy as np
 
 from app import config
 from app.config import Grid
-from app.ground import line_cells
+from app.ground import Terrain, line_cells
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,7 @@ class Sensor:
     row: int
     col: int
     at_underpass: bool
+    district: str | None = None  # set for the Shield index gauges
 
 
 @dataclass(frozen=True)
@@ -41,13 +42,44 @@ class DepthSensorSource(Protocol):
     def read(self, hour: int) -> list[Reading]: ...
 
 
-def place_sensors(
-    features: list[dict[str, Any]], grid: Grid, land: np.ndarray, rng: np.random.Generator
-) -> list[Sensor]:
-    """Pick sensor cells on roads: some at underpasses, the rest on other roads.
+def hollowness(elevation_m: np.ndarray) -> np.ndarray:
+    """How far each cell sits below the average of its 8 neighbours (m)."""
+    padded = np.pad(elevation_m, 1, mode="edge")
+    rows, cols = elevation_m.shape
+    around = sum(
+        padded[1 + dr : 1 + dr + rows, 1 + dc : 1 + dc + cols]
+        for dr in (-1, 0, 1) for dc in (-1, 0, 1) if (dr, dc) != (0, 0)
+    )
+    return around / 8.0 - elevation_m
 
-    `land` is a boolean (rows, cols) mask; sensors are never put on open water.
+
+def district_low_points(
+    road_cells: set[int], grid: Grid, ground_m: np.ndarray, centre: tuple[float, float],
+    count: int,
+) -> list[int]:
+    """The `count` most hollow road cells within the district radius.
+
+    Gauges go where water would collect. This uses terrain only, never flood results.
     """
+    cells = np.array(sorted(road_cells))
+    lats, lons = grid.lats()[cells // grid.cols], grid.lons()[cells % grid.cols]
+    dy = (lats - centre[0]) * config.METRES_PER_DEG_LAT
+    dx = (lons - centre[1]) * config.METRES_PER_DEG_LAT * np.cos(np.radians(centre[0]))
+    nearby = cells[np.hypot(dx, dy) <= config.DISTRICT_RADIUS_KM * 1000.0]
+    depth = hollowness(ground_m).ravel()[nearby]
+    return [int(c) for c in nearby[np.argsort(-depth, kind="stable")[:count]]]
+
+
+def place_sensors(
+    features: list[dict[str, Any]], grid: Grid, terrain: Terrain, rng: np.random.Generator,
+    districts: dict[str, tuple[float, float]] | None = None,
+) -> list[Sensor]:
+    """Pick sensor cells on roads: underpasses, district low points, then other roads.
+
+    Sensors are never put on open water or on bridges.
+    """
+    districts = config.DISTRICTS if districts is None else districts
+    land = ~terrain.open_water
     underpass_cells: set[int] = set()
     road_cells: set[int] = set()
     for feature in features:
@@ -62,8 +94,18 @@ def place_sensors(
         pool = np.array(sorted(cells))
         return [int(c) for c in rng.choice(pool, size=min(count, pool.size), replace=False)]
 
-    chosen_underpass = pick(underpass_cells, config.SENSOR_UNDERPASS_COUNT)
-    chosen_road = pick(road_cells, config.SENSOR_COUNT - len(chosen_underpass))
+    chosen: list[tuple[int, str | None]] = [
+        (cell, None) for cell in pick(underpass_cells, config.SENSOR_UNDERPASS_COUNT)
+    ]
+    ground_m = terrain.elevation_m + terrain.dip_cm / 100.0  # ignore the assumed dips
+    for name, centre in districts.items():
+        taken = {cell for cell, _ in chosen}
+        low = district_low_points(road_cells - taken, grid, ground_m, centre,
+                                  config.SENSOR_PER_DISTRICT)
+        chosen += [(cell, name) for cell in low]
+    taken = {cell for cell, _ in chosen}
+    chosen += [(cell, None) for cell in pick(road_cells - taken,
+                                             config.SENSOR_COUNT - len(chosen))]
     lats, lons = grid.lats(), grid.lons()
     return [
         Sensor(
@@ -73,8 +115,9 @@ def place_sensors(
             row=cell // grid.cols,
             col=cell % grid.cols,
             at_underpass=cell in underpass_cells,
+            district=district,
         )
-        for number, cell in enumerate(chosen_underpass + chosen_road, start=1)
+        for number, (cell, district) in enumerate(chosen, start=1)
     ]
 
 

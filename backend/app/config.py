@@ -63,7 +63,8 @@ SENSOR_BLEND_WEIGHT = 0.7  # how far a model cell is pulled toward a sensor read
 
 # --- Simulated depth sensors.
 SENSOR_COUNT = 60
-SENSOR_UNDERPASS_COUNT = 20  # sensors placed at underpasses first, rest on other roads
+SENSOR_UNDERPASS_COUNT = 20  # sensors placed at underpasses first
+SENSOR_PER_DISTRICT = 8  # gauges at road low points in each focus district (Shield index)
 SENSOR_RELATIVE_NOISE = 0.10
 SENSOR_ABSOLUTE_NOISE_CM = 1.0
 
@@ -145,3 +146,13 @@ ALERT_SPACING_HOURS = 3
 ALERT_MAX_CHARS = 160
 # `or` so that an empty value copied from .env.example still gets the default.
 AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
+
+# --- Shield: mock parametric policies. Businesses, triggers and amounts are invented.
+POLICY_COUNT = 40
+POLICY_RADIUS_KM = 1.5  # mock businesses are scattered this close to a district centre
+# (name, threshold cm, consecutive hourly readings needed, payout AED)
+POLICY_TIERS: tuple[tuple[str, float, int, int], ...] = (
+    ("Basic", 30.0, 1, 20_000),
+    ("Sustained", 30.0, 2, 30_000),
+    ("Severe", 50.0, 1, 50_000),
+)

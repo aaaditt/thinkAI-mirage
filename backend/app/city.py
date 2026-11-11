@@ -32,10 +32,13 @@ from app.models import (
     Inventory,
     Plan,
     PlanResult,
+    PayoutEvent,
+    Policy,
     ProposedAction,
     Situation,
 )
 from app.replay import Scenario, Timeline, World, build_timeline
+from app.shield import evaluate_payouts, generate_policies
 
 log = logging.getLogger("mirage.city")
 
@@ -606,10 +609,14 @@ def pump_drainage(scenario: Scenario, sites: Sites, actions: list[Action]) -> np
 class Session:
     """The live replay: the action queue and the timeline it produces."""
 
-    def __init__(self, world: World, planner: Planner | None = None):
+    def __init__(self, world: World, planner: Planner | None = None,
+                 policies: list[Policy] | None = None):
         self.world = world
         self.sites = build_sites(world.scenario)
         self.planner = planner or default_planner()
+        self.policies = policies if policies is not None else generate_policies(
+            world.scenario.sensors, np.random.default_rng(config.SEED)
+        )
         self._lock = threading.Lock()
         self.reset()
 
@@ -693,3 +700,10 @@ class Session:
 
     def alerts(self, hour: int) -> list[Alert]:
         return [alert for alert in self.channel.sent if alert.issued_hour <= hour]
+
+    def payouts(self, hour: int) -> list[PayoutEvent]:
+        """Payouts fired up to `hour`. Shield is handed the sensor readings and
+        nothing else: no forecast, no model depth."""
+        sensor_ids = [s.id for s in self.world.scenario.sensors]
+        events = evaluate_payouts(self.policies, sensor_ids, self.timeline.sensor_cm)
+        return [event for event in events if event.hour <= hour]

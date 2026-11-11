@@ -24,6 +24,30 @@ export interface Meta {
   story: { zero_hour: number; start_hour: number; end_hour: number };
   thresholds: { caution_cm: number; impassable_cm: number; display_cap_cm: number };
   districts: District[];
+  policies: Policy[];
+}
+
+/** A MOCK parametric policy. */
+export interface Policy {
+  id: string;
+  business: string;
+  district: string;
+  lat: number;
+  lon: number;
+  tier: string;
+  threshold_cm: number;
+  duration_hours: number;
+  amount_aed: number;
+  sensor_id: string;
+  sensor_distance_m: number;
+}
+
+/** Fired from simulated sensor readings only. No money moves. */
+export interface PayoutEvent {
+  policy_id: string;
+  hour: number;
+  measured_cm: number;
+  amount_aed: number;
 }
 
 export interface SensorReading {
@@ -49,6 +73,8 @@ export interface ReplayFrame {
   closed_segments: number[];
   alerts: Alert[];
   pumps_available: number;
+  payouts: PayoutEvent[];
+  payout_total_aed: number;
 }
 
 export type ActionType = "stage_pump" | "close_underpass" | "area_alert" | "open_road";
