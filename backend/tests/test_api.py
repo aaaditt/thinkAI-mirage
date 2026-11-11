@@ -22,6 +22,9 @@ def test_meta_describes_the_replay_and_carries_the_disclaimer(client, small_worl
     assert meta["segment_count"] == len(small_world.scenario.features)
     assert meta["story"] == {"zero_hour": 14, "start_hour": 8, "end_hour": 16}
     assert [d["name"] for d in meta["districts"]] == list(config.DISTRICTS)
+    # The timeline's rain bars: one recorded mean per hour, wettest at T-0.
+    assert len(meta["rain_mean_mm"]) == config.HOURS
+    assert max(range(config.HOURS), key=meta["rain_mean_mm"].__getitem__) == 14
 
 
 def test_roads_are_geojson_with_ids_matching_risk_string_positions(client, small_world):
@@ -59,3 +62,18 @@ def test_replay_rejects_hours_outside_the_day(client):
 
 def test_same_hour_twice_gives_identical_frames(client):
     assert client.get("/api/replay/10").json() == client.get("/api/replay/10").json()
+
+
+def test_built_frontend_is_served_alongside_the_api(small_world, tmp_path, monkeypatch):
+    (tmp_path / "index.html").write_text("<title>Mirage</title>", encoding="utf-8")
+    monkeypatch.setattr(config, "FRONTEND_DIST", tmp_path)
+    with TestClient(create_app(small_world)) as served:
+        assert "<title>Mirage</title>" in served.get("/").text
+        assert served.get("/api/meta").json()["disclaimer"] == config.DISCLAIMER
+
+
+def test_api_still_works_when_the_frontend_was_never_built(small_world, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "FRONTEND_DIST", tmp_path / "missing")
+    with TestClient(create_app(small_world)) as bare:
+        assert bare.get("/api/meta").status_code == 200
+        assert bare.get("/").status_code == 404

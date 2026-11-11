@@ -13,6 +13,7 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.city import ActionError, Planner, Session
@@ -69,6 +70,7 @@ def build_meta(session: Session) -> Meta:
         rain_cols=timeline.rain_small.shape[2],
         rain_block=config.RAIN_DOWNSAMPLE,
         forecast_leads=config.FORECAST_LEADS,
+        rain_mean_mm=[round(float(mm), 2) for mm in timeline.rain_small.mean(axis=(1, 2))],
         segment_count=len(world.scenario.features),
         story=StoryWindow(
             zero_hour=zero,
@@ -182,6 +184,9 @@ def create_app(
         request.app.state.session.reset()
         return {"ok": True}
 
+    # Mounted last, so /api routes win. One process then serves the whole demo.
+    if config.FRONTEND_DIST.is_dir():
+        app.mount("/", StaticFiles(directory=config.FRONTEND_DIST, html=True), name="frontend")
     return app
 
 

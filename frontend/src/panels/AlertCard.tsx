@@ -13,27 +13,34 @@ export function AlertCard({ alerts, actions }: Props) {
     latest !== undefined &&
     actions.find((action) => action.id === latest.action_id)?.decided_by === "demo_auto";
   return (
-    <section className="phone" aria-label="Latest approved area alert, phone preview">
-      <div className="phone-bar">
-        <span>{latest ? clockLabel(latest.issued_hour) : "--:--"}</span>
-        <span className="phone-notch" />
-        <span>GST</span>
+    <section className="alert" aria-label="Latest approved area alert, phone preview">
+      <div className="head">
+        <h2>Area alert</h2>
+        <p>In-app preview, never sent</p>
       </div>
-      {latest ? (
-        <div className="bubble">
-          <div className="bubble-head">
-            <b>Mirage · area alert</b>
-            <span>{latest.district}</span>
-          </div>
-          <p>{latest.message}</p>
+      <div className="phone">
+        <div className="phone-bar">
+          <span>{latest ? clockLabel(latest.issued_hour) : "--:--"}</span>
+          <span className="phone-notch" />
+          <span>GST</span>
         </div>
-      ) : (
-        <p className="phone-empty">No alert approved yet. An approved area alert appears here.</p>
+        {latest ? (
+          <div className="bubble">
+            <div className="bubble-head">
+              <b>Mirage area alert</b>
+              <span>{latest.district}</span>
+            </div>
+            <p>{latest.message}</p>
+          </div>
+        ) : (
+          <p className="phone-empty">No alert yet. Approve an area alert to preview it here.</p>
+        )}
+      </div>
+      {latest && (
+        <p className={auto ? "note auto" : "note"}>
+          {auto ? "Auto-approved for demo." : "Approved by operator."}
+        </p>
       )}
-      <p className="phone-foot">
-        In-app preview only. Nothing is sent to any phone.
-        {latest && (auto ? " Auto-approved for demo." : " Approved by operator.")}
-      </p>
     </section>
   );
 }

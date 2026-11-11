@@ -22,72 +22,92 @@ const TYPE_LABEL: Record<ActionType, string> = {
   open_road: "Reopen road",
 };
 
-const STATUS_ORDER = { proposed: 0, approved: 1, rejected: 2 };
+/** Same shapes as the map markers, so a card and its marker read as one thing. */
+const TYPE_GLYPH: Record<ActionType, string> = {
+  stage_pump: "pump",
+  close_underpass: "closure",
+  area_alert: "alert",
+  open_road: "reopen",
+};
 
-export function depthLabel(depthCm: number, capCm: number): string {
+function depthLabel(depthCm: number, capCm: number): string {
   return depthCm > capCm ? `over ${capCm} cm` : `${Math.round(depthCm)} cm`;
 }
 
 function plannerNote(plan: PlanResult): string {
-  if (plan.planner === "llm") return "Planned by the LLM (Azure OpenAI), then rule-checked.";
-  if (plan.fallback_reason) return "LLM plan failed its checks. Rule-based planner used instead.";
-  return "Planned by the rule-based planner (no LLM key set).";
+  if (plan.planner === "llm") return "Last plan: LLM (Azure OpenAI), then rule-checked.";
+  if (plan.fallback_reason) return "Last plan: the LLM plan failed its checks, so rules were used.";
+  return "Last plan: rule-based planner (no LLM key set).";
 }
 
 function decisionLabel(action: Action): string {
-  if (action.status === "rejected") return "✕ Rejected by operator";
-  return action.decided_by === "demo_auto" ? "✓ Auto-approved for demo" : "✓ Approved by operator";
+  if (action.status === "rejected") return "Rejected";
+  return action.decided_by === "demo_auto" ? "Auto-approved for demo" : "Approved by operator";
 }
 
-function ActionCard({ meta, action, busy, onDecide }: {
+function Title({ action }: { action: Action }) {
+  return (
+    <>
+      <span className={`glyph ${TYPE_GLYPH[action.type]}`} />
+      <span className="action-type">{TYPE_LABEL[action.type]}</span>
+      <span className="action-target">{action.label}</span>
+    </>
+  );
+}
+
+function Detail({ meta, action }: { meta: Meta; action: Action }) {
+  const { evidence } = action;
+  return (
+    <>
+      {action.message && <blockquote className="action-message">{action.message}</blockquote>}
+      <p className="action-reason">{action.reason}</p>
+      <p className="evidence">
+        {depthLabel(evidence.forecast_depth_cm, meta.thresholds.display_cap_cm)} forecast,{" "}
+        {evidence.lead_hours} h lead, confidence score {Math.round(evidence.confidence * 100)}%.
+        Starts{" "}
+        {clockLabel(action.start_hour)} ({offsetLabel(action.start_hour - meta.story.zero_hour)}).
+      </p>
+    </>
+  );
+}
+
+function Proposal({ meta, action, busy, onDecide }: {
   meta: Meta;
   action: Action;
   busy: boolean;
   onDecide: Props["onDecide"];
 }) {
-  const { evidence } = action;
   return (
-    <li className={`action ${action.status}`}>
-      <div className="action-head">
-        <span className={`action-type ${action.type}`}>{TYPE_LABEL[action.type]}</span>
-        <span className="action-id">{action.id}</span>
+    <li className="proposal">
+      <div className="action-title">
+        <Title action={action} />
       </div>
-      <div className="action-target">{action.label}</div>
-      <div className="action-when">
-        From {clockLabel(action.start_hour)} ({offsetLabel(action.start_hour - meta.story.zero_hour)})
+      <Detail meta={meta} action={action} />
+      <div className="action-buttons">
+        <button type="button" className="approve" disabled={busy}
+          onClick={() => onDecide(action.id, "approve")}>
+          Approve
+        </button>
+        <button type="button" className="reject" disabled={busy}
+          onClick={() => onDecide(action.id, "reject")}>
+          Reject
+        </button>
       </div>
-      {action.message && <blockquote className="action-message">{action.message}</blockquote>}
-      <p className="action-reason">{action.reason}</p>
-      <dl className="evidence">
-        <div>
-          <dt>Forecast</dt>
-          <dd>{depthLabel(evidence.forecast_depth_cm, meta.thresholds.display_cap_cm)}</dd>
-        </div>
-        <div>
-          <dt>Lead</dt>
-          <dd>{evidence.lead_hours} h</dd>
-        </div>
-        <div>
-          <dt>Confidence</dt>
-          <dd>{Math.round(evidence.confidence * 100)}%</dd>
-        </div>
-      </dl>
-      {action.status === "proposed" ? (
-        <div className="action-buttons">
-          <button type="button" className="approve" disabled={busy}
-            onClick={() => onDecide(action.id, "approve")}>
-            Approve
-          </button>
-          <button type="button" className="reject" disabled={busy}
-            onClick={() => onDecide(action.id, "reject")}>
-            Reject
-          </button>
-        </div>
-      ) : (
-        <div className={`action-status ${action.status} ${action.decided_by ?? ""}`}>
-          {decisionLabel(action)}
-        </div>
-      )}
+    </li>
+  );
+}
+
+/** A decided action: one line, expandable to the agent's reason and evidence. */
+function Decided({ meta, action }: { meta: Meta; action: Action }) {
+  return (
+    <li className={`decided ${action.status}`}>
+      <details>
+        <summary>
+          <Title action={action} />
+          <span className={`decision ${action.decided_by ?? ""}`}>{decisionLabel(action)}</span>
+        </summary>
+        <Detail meta={meta} action={action} />
+      </details>
     </li>
   );
 }
@@ -95,44 +115,65 @@ function ActionCard({ meta, action, busy, onDecide }: {
 export function ActionQueue(props: Props) {
   const { meta, actions, pumpsAvailable, lastPlan, busy, demo, error } = props;
   const { onPlan, onDecide, onReset } = props;
-  const sorted = [...actions].sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.id.localeCompare(a.id),
-  );
-  const waiting = actions.filter((action) => action.status === "proposed").length;
+  const newestFirst = [...actions].reverse();
+  const waiting = newestFirst.filter((action) => action.status === "proposed");
+  const decided = newestFirst.filter((action) => action.status !== "proposed");
   return (
-    <section className="queue" aria-label="Agent action queue">
-      <div className="queue-head">
-        <h2>Agent proposals</h2>
-        <span className="queue-count">{waiting} awaiting decision</span>
+    <section className="queue" aria-label="City: agent action queue">
+      <div className="head">
+        <h2>City</h2>
+        <p>The agent proposes. A person decides.</p>
       </div>
       <div className="queue-tools">
         <button type="button" className="primary" disabled={busy} onClick={onPlan}>
           {busy && !demo ? "Working…" : "Ask agent for a plan"}
         </button>
-        <button type="button" className="ghost" disabled={busy} onClick={onReset}>
+        <button type="button" className="quiet" disabled={busy} onClick={onReset}>
           Reset
         </button>
       </div>
       {demo && (
         <p className="demo-note" role="status">
-          Demo mode: proposals are being auto-approved. No operator is deciding.
+          Demo mode is approving proposals automatically. No operator is deciding.
         </p>
       )}
       <p className="note">
-        Nothing takes effect until you approve it. Pumps available: {pumpsAvailable} (mock fleet).
+        {pumpsAvailable} pumps left in the mock fleet.
         {lastPlan && ` ${plannerNote(lastPlan)}`}
       </p>
       {error && <p className="queue-error" role="alert">{error}</p>}
-      {sorted.length === 0 ? (
-        <p className="queue-empty">No proposals yet.</p>
-      ) : (
-        <ul className="actions">
-          {sorted.map((action) => (
-            <ActionCard key={action.id} meta={meta} action={action} busy={busy}
-              onDecide={onDecide} />
-          ))}
-        </ul>
-      )}
+
+      <div className="queue-scroll">
+        <h3>
+          Awaiting your decision <b>{waiting.length}</b>
+        </h3>
+        {waiting.length === 0 ? (
+          <p className="queue-empty">
+            {actions.length === 0
+              ? "No proposals yet. Ask the agent for a plan, or start Demo mode."
+              : "Nothing is waiting."}
+          </p>
+        ) : (
+          <ul className="proposals">
+            {waiting.map((action) => (
+              <Proposal key={action.id} meta={meta} action={action} busy={busy}
+                onDecide={onDecide} />
+            ))}
+          </ul>
+        )}
+        {decided.length > 0 && (
+          <>
+            <h3>
+              Decided <b>{decided.length}</b>
+            </h3>
+            <ul className="decided-list">
+              {decided.map((action) => (
+                <Decided key={action.id} meta={meta} action={action} />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </section>
   );
 }

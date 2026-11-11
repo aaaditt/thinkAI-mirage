@@ -10,12 +10,12 @@ It is not an operational system. Nothing in it is connected to any real sensor, 
 
 | Engine | What you see |
 |---|---|
-| **Sky** | Rain recorded this hour, and a simulated forecast for the next 6 hours. |
-| **Ground** | Predicted flood depth on about 20,000 road segments, corrected each hour by simulated sensor readings. |
-| **City** | An agent proposes actions: stage a pump, close an underpass, send an area alert. A person clicks Approve or Reject. Nothing takes effect without approval. |
+| **Sky** | Historical rain for each hour (a reanalysis, see below), and a simulated forecast for the next 6 hours. |
+| **Ground** | Modelled flood depth on about 20,000 road segments, corrected each hour by simulated sensor readings. |
+| **City** | An agent (rule-based unless Azure OpenAI keys are set) proposes actions: stage a pump, close an underpass, send an area alert. A person clicks Approve or Reject. Nothing takes effect without approval. |
 | **Shield** | When a simulated sensor in an insured zone measures enough water, a mock parametric payout fires. |
 
-The timeline runs from T–6 h to T+2 h. T–0 is 16:00 Gulf Standard Time, the hour of heaviest recorded rain; it is computed from the data.
+The timeline runs from T–6 h to T+2 h. T–0 is 16:00 Gulf Standard Time, the hour of heaviest rain in the historical data; it is computed from that data.
 
 ## How to run it
 
@@ -41,20 +41,18 @@ cd backend
 
 This downloads rainfall, elevation and roads and caches them in `data/`. The elevation service has a free quota of roughly 5,000 points per hour, and the grid needs 6,075, so the fetch pauses and resumes; allow over an hour. After that the demo needs no internet for its data.
 
-**3. Start the two servers** (two terminals)
+**3. Start it**
 
 ```
-cd backend
-.venv/Scripts/python -m uvicorn app.main:app --port 8000
+python start.py
 ```
 
-```
-cd frontend
-npm install        (first time only)
-npm run dev
-```
+This builds the frontend if it is missing or out of date, starts one server on port 8000 that serves both the API and the app, and opens http://localhost:8000 in your browser. The first start builds the replay and caches it in `data/timeline.npz`. Press Ctrl+C to stop.
 
-Open http://localhost:5173. The first backend start builds the replay and caches it in `data/timeline.npz`.
+- `python start.py --offline` opens the app with the online basemap switched off (see "Running with no internet").
+- `python start.py --no-browser` does not open a browser.
+
+For development with hot reload, run the two servers separately instead: `.venv/Scripts/python -m uvicorn app.main:app --port 8000` in `backend/`, and `npm run dev` in `frontend/` (then open http://localhost:5173).
 
 **4. Tests**
 
@@ -63,13 +61,23 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
+## Running with no internet
+
+Once `data/` exists and the frontend has been built once, the demo needs no internet:
+
+- All data comes from the `data/` cache. The fonts are bundled with the app.
+- The only thing fetched at run time is the CARTO basemap. If it cannot be reached, the app falls back to a plain dark background with our cached road layer and labels for the three focus districts.
+- **On venue Wi-Fi that is slow rather than absent, use `python start.py --offline`.** The automatic fallback only triggers when the basemap style cannot be fetched at all within 4 seconds; on a flaky connection the style can load and its tiles then arrive slowly or not at all.
+
+This was checked by blocking every request that was not to localhost and running Demo mode end to end. That check blocks the browser's requests; it is not the same as switching Wi-Fi off, though the backend makes no outside requests unless Azure OpenAI keys are set.
+
 ## Using the demo
 
-- **Demo mode** (top bar) resets the replay, plays from T–6 h to T+2 h, asks the agent for a plan each hour and approves it automatically. The whole story takes about 90 to 100 seconds at 1× speed. Every action approved this way is labelled "auto-approved for demo", on its card and in the alert preview.
-- **Play / Pause** and the speed buttons (0.5×, 1×, 2×) step through the hours without touching the agent. You can also drag the scrubber or click an hour.
-- **Ask agent for a plan** puts proposals in the queue. Use **Approve** or **Reject** on each card. **Reset** clears everything.
-- **Sky** bars: click "now" or +1 h to +6 h to choose which rain field the map shows.
-- The three buttons under the clock switch the road colours between the sensor-corrected estimate, the model alone, and the worst case over the next 6 hours.
+- **Run demo** (top of the map) resets the replay, plays from T–6 h to T+2 h, asks the agent for a plan each hour and approves it automatically. The whole story takes about 90 to 100 seconds at 1× speed (about 60 at 2×). Every action approved this way is labelled "Auto-approved for demo", on its row and under the alert preview.
+- **Sky** (bottom strip) is both the rain chart and the timeline. Each bar is one hour of area-mean rain. Solid bars are the historical data; hatched bars are the simulated forecast issued at the hour on screen. Click a bar to jump to that hour.
+- **Play / Pause** and the speed buttons (0.5×, 1×, 2×) step through the hours without touching the agent.
+- **Ask agent for a plan** puts proposals in the City queue. Use **Approve** or **Reject** on each card. Decided actions collapse to one line; click one to see the agent's reason again. **Reset** clears everything.
+- **Ground** has three views: "Now" (model corrected by the simulated sensors), "Model only", and "Next 6 h" (worst forecast depth and forecast rain).
 - **About** lists what is real, what is simulated, and the model's limits.
 
 ## The agent and Azure OpenAI
@@ -90,7 +98,7 @@ The LLM's plan is validated against the same rules. If it fails validation, or t
 
 **Real**
 
-- Hourly rainfall for 16 April 2024, from the Open-Meteo historical archive.
+- Hourly rainfall for 16 April 2024, from the Open-Meteo historical archive. This is a reanalysis: a model-based reconstruction of the weather, not rain-gauge or radar readings.
 - Ground elevation, from the Open-Meteo elevation API.
 - Roads, tunnels and underpasses, from OpenStreetMap through the Overpass API.
 
@@ -112,13 +120,16 @@ We have no access to NCM radar, RTA cameras or NCEMA systems, and the code does 
 - **Elevation is coarse.** It was sampled every 400 m in whole metres and interpolated. It cannot see underpasses, so a 3 m dip is assumed wherever OpenStreetMap tags a tunnel or a negative layer.
 - **The "truth" the sensors read is the same model.** Sensor correction therefore shows the mechanism, not real forecast skill.
 - **Payouts carry basis risk.** A policy is paid on its nearest gauge, typically about 1 km away, not on the water at the business's door. Readings are hourly snapshots.
+- **The confidence score on a proposal is not a probability.** It is a fixed function of lead time (95% minus 8 points per hour of lead), not calibrated against anything.
+- **Pumps did not change any payout in our runs.** A full Demo mode run ends with the same AED 380,000 of mock payouts as a run with no actions.
 - **Approved actions have simple effects.** A pump adds local drainage; a closure is drawn on the map. Traffic is not modelled.
 
 ## Data credits
 
 - Weather and elevation data by [Open-Meteo.com](https://open-meteo.com/), licensed CC BY 4.0.
 - Roads © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, licensed ODbL.
-- Basemap © [CARTO](https://carto.com/attributions), © OpenStreetMap contributors. The basemap needs internet; without it the app falls back to a plain dark background with the cached road layer.
+- Basemap © [CARTO](https://carto.com/attributions), © OpenStreetMap contributors.
+- Fonts: Inter, Space Grotesk and JetBrains Mono (SIL Open Font License), bundled through Fontsource.
 
 ## More detail
 

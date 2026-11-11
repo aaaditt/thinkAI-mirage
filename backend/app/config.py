@@ -18,6 +18,8 @@ ELEVATION_PATH = DATA_DIR / "elevation.npy"
 ELEVATION_PARTIAL_PATH = DATA_DIR / "elevation_partial.npy"
 ROADS_PATH = DATA_DIR / "roads.geojson"
 TIMELINE_PATH = DATA_DIR / "timeline.npz"
+# The built frontend (npm run build). When present, the API serves it too.
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 DISCLAIMER = "Prototype — simulated sensors, simplified flood model"
 CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]

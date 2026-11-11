@@ -16,13 +16,14 @@ export function Payouts({ meta, payouts, totalAed }: Props) {
   const newestFirst = [...payouts].reverse();
   return (
     <section className="payouts" aria-label="Shield payouts">
-      <div className="queue-head">
-        <h2>Shield payouts</h2>
-        <span className="payout-total">{aed(totalAed)}</span>
+      <div className="head">
+        <h2>Shield</h2>
+        <p>Mock parametric payouts</p>
       </div>
+      <div className="payout-total">{aed(totalAed)}</div>
       <p className="note">
-        {payouts.length} of {meta.policies.length} mock policies triggered so far, from simulated
-        sensor readings only. No money moves.
+        {payouts.length} of {meta.policies.length} mock policies triggered by simulated sensors. No
+        money moves.
       </p>
       {newestFirst.length > 0 && (
         <ul className="payout-list">
@@ -30,14 +31,12 @@ export function Payouts({ meta, payouts, totalAed }: Props) {
             const policy = policies.get(event.policy_id);
             return (
               <li key={event.policy_id}>
-                <span className="payout-when">
-                  {clockLabel(event.hour)} · {offsetLabel(event.hour - meta.story.zero_hour)}
-                </span>
-                <span className="payout-amount">{aed(event.amount_aed)}</span>
                 <span className="payout-who">{policy?.business ?? event.policy_id}</span>
+                <span className="payout-amount">{aed(event.amount_aed)}</span>
                 <span className="payout-why">
-                  {Math.round(event.measured_cm)} cm measured at {policy?.sensor_id}, trigger ≥
-                  {policy?.threshold_cm} cm for {policy?.duration_hours} h
+                  {clockLabel(event.hour)} ({offsetLabel(event.hour - meta.story.zero_hour)}),{" "}
+                  {Math.round(event.measured_cm)} cm at gauge {policy?.sensor_id}. Trigger:{" "}
+                  {policy?.threshold_cm} cm for {policy?.duration_hours} h.
                 </span>
               </li>
             );

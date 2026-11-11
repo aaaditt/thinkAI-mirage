@@ -98,8 +98,8 @@ Precompute the baseline timeline at startup (or load the cache) so `/api/replay/
 ## Frontend requirements
 - Full-screen dark map; palette: background `#0B1220`, cyan `#3CCFE0`, amber `#F2A93B`, sand text `#E6ECF3`. Headings in Space Grotesk, labels in JetBrains Mono, body in Inter (load via Google Fonts; fall back gracefully offline).
 - Layers: rainfall (soft cyan heat layer), roads coloured by risk class (also vary line width or dash so colour is not the only signal), closed underpasses (amber marker with label), pumps (diamond), payout pins.
-- Right-hand panel: big clock ("T–6 h … T–0"), action queue with Approve/Reject buttons and the agent's reason + evidence, the latest approved alert rendered as a phone-style card, payouts list with running total.
-- Bottom: timeline scrubber with Play/Pause and speed.
+- Layout (redesigned after Phase 6, see PROJECT_LOG.md): a big T-minus clock set on the map; a left rail with the brand and Prototype badge, Ground (view switch and legend), the latest approved alert as a phone-style card, and Shield payouts with running total; a right rail with the City action queue (Approve/Reject, the agent's reason + evidence).
+- Bottom: the Sky strip, which is the timeline: one rain bar per hour (historical solid, simulated forecast hatched), click to jump, with Play/Pause and speed.
 - "About" drawer: what is real, what is simulated, model limits, data credits (Open-Meteo, © OpenStreetMap contributors).
 - Must look right at 1920×1080 on a projector and be usable at 1366×768.
 

@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** Phases 1 to 6 are finished, tested, and pushed to GitHub. All four engines (Sky, Ground, City, Shield) work end to end, the screen is polished for the demo, and Demo mode runs the whole story hands-free. Phase 7 (make it safe to present) is next.
+**Where we are right now:** All seven phases are finished, tested, and pushed to GitHub. The screen was redesigned after Phase 6. The demo starts with one command (`python start.py`) and runs with no internet. What is left is listed under "Still open" at the end of Phase 7.
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -16,7 +16,8 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 4 | The agent that proposes actions | Done (LLM path untested against a live key) |
 | 5 | Insurance payouts | Done |
 | 6 | Polish for the demo | Done |
-| 7 | Make it safe to present | Not started |
+| 6b | Redesign of the screen | Done |
+| 7 | Make it safe to present | Done |
 
 ---
 
@@ -484,3 +485,72 @@ Checked in a real browser at both sizes. At 1366 × 768 everything fits with no 
 
 ### Screenshots
 On this laptop only, in `data/previews/`: `app_phase6_T-0_1920.png`, `app_phase6_T-0_1366.png`, `app_phase6_about_1366.png`, and `app_demo_T-0_1920.png` (Demo mode running).
+
+---
+
+## Phase 6b — Redesign of the screen
+
+You asked for a proper design pass before Phase 7. The palette and the three typefaces stayed as the spec sets them; the structure changed.
+
+### What was wrong before
+- Six identical floating cards competed with each other. Nothing led.
+- The timeline, the spine of the story, was a default browser slider.
+- The map was buried under large CLOSED and PUMP text tags.
+- After a demo the queue was 52 tall cards with two visible.
+
+### What changed
+1. **The storm is the timeline.** The bottom strip (Sky) is a rain chart with one bar per hour. Hours up to the one on screen are solid (historical data); the next six are hatched (the simulated forecast issued at that hour). As the replay plays, hatched bars become solid. Clicking a bar jumps to that hour. This replaced both the slider and the old Sky card.
+2. **One loud element: the countdown.** A very large T-minus clock sits directly on the map, over the sea, with no box.
+3. **Docked rails instead of floating cards.** Left: brand and the Prototype badge, Ground, the alert preview, Shield. Right: the City queue. Sections are split by thin lines and named after their engine.
+4. **Small shape markers.** Square = closed underpass, diamond = pump, teardrop = mock payout, ring = sensor. The same shapes appear in the legend and on the queue rows. Names show on hover.
+5. **A dashed frame marks the study area,** so the edge of the rain haze reads as the edge of our data, not the edge of the storm.
+6. **A scannable queue.** Proposals waiting for a decision are full cards. Decided ones collapse to one line and open on click.
+7. **One view switch** (Now / Model only / Next 6 h) changes the roads and the rain together. The old "click a forecast bar to show that rain on the map" control was removed; "Next 6 h" shows the peak forecast rain instead.
+
+### Backend change
+`/api/meta` now also returns the area-mean historical rain for each hour (24 numbers), which the rain chart needs. One assertion added to the meta test.
+
+### Problem found and fixed
+- **The map was fitted into the wrong part of the screen.** The map sat under the rails and relied on uneven padding to centre the city; the offset was not honoured. The map element now sits between the rails, with even padding.
+
+### Something to be aware of
+During two test runs Demo mode stopped early, and in one of them two approvals were recorded as "operator". Only a click on Approve can produce that, and the test browser window was open on this laptop, so the likely cause is clicks in that window. Three later runs (two online, one with the network blocked) all finished at T+2 with no errors. The cause was not proven, so if Demo mode ever stops by itself, that needs another look.
+
+---
+
+## Phase 7 — Make it safe to present
+
+### 1. Runs with no internet
+- **Fonts are now bundled** with the app (Fontsource packages). Google Fonts is no longer contacted.
+- **One server.** The backend now serves the built frontend too, so the demo is one process on port 8000. This also uses less memory; the laptop had stopped both servers for low memory during this phase.
+- **Basemap fallback.** If the CARTO basemap cannot be fetched, the app shows a plain dark background with our cached roads, and labels for the three focus districts.
+- **`?offline` switch** (or `python start.py --offline`) skips the basemap on purpose, for venue Wi-Fi that is slow rather than absent.
+- **How it was checked:** every browser request not to localhost was blocked, then Demo mode was run end to end. It finished at T+2 with 52 auto-approvals and no errors. The only outside request attempted was the basemap. Screenshot: `data/previews/app_offline_T-0_1920.png`.
+- **Limit of that check:** it blocks the browser's requests. It is not the same as switching Wi-Fi off. The backend makes no outside requests unless Azure keys are set, but it was not run with the network adapter disabled.
+
+### 2. One command
+`python start.py` checks the setup, builds the frontend if it is missing or older than the source, starts the server and opens the browser. Tested with `--no-browser`; the automatic browser opening was not exercised.
+
+### 3. Tests
+124 backend tests, all passing. 2 are new: the built frontend is served next to the API; the API still works when the frontend was never built. The frontend type check and production build pass.
+
+### 4. The sceptical-judge review: wording that overstated, and the fix
+| Where | It said | Problem | Now says |
+|---|---|---|---|
+| Sky strip, clock, About, README | "Recorded" rain | The Open-Meteo archive is a reanalysis: a model reconstruction, not gauge or radar readings | "Historical (reanalysis)", explained in About and the README |
+| Ground heading | "Flood depth on roads" | It is model output, not measured depth | "Modelled flood depth on roads" |
+| Shield heading and legend | "Parametric payouts", "Payout fired" | Reads as real money | "Mock parametric payouts", "Mock payout" |
+| Proposal cards | "63% confidence" | A fixed function of lead time, not a calibrated probability | "confidence score 63%", explained in About and the README |
+| About | Sensor correction shown without caveat | The "truth" the sensors read is the same model | Added to About (it was already in the README) |
+| About, README | "The agent" | Without Azure keys it is a fixed set of rules, and the LLM path has never run against a live key | Said plainly in About and the README |
+| README | Nothing on whether actions help | Pumps did not change any payout in our runs | Stated under limits |
+
+### Still open
+- **The LLM planner has never been run against a live Azure OpenAI key.**
+- **No automated frontend tests.** The screen is checked by running it.
+- **Not tested with the network adapter actually off,** only with browser requests blocked.
+- **At 1366 × 768 the left rail scrolls slightly** so that a few payouts are always visible.
+- **Older sections of this log** still describe the Phase 6 layout and the two-server way of running; the README is the current reference.
+
+### Screenshots
+On this laptop only, in `data/previews/`: `app_final_T-6h_1920.png`, `app_final_demo_T-2h_1920.png`, `app_final_T-0_1920.png`, `app_final_T-0_1366.png`, `app_final_about_1366.png`, `app_offline_T-0_1920.png`.

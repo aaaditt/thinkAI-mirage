@@ -18,7 +18,11 @@ const PLAIN_STYLE: StyleSpecification = {
   layers: [{ id: "background", type: "background", paint: { "background-color": COLORS.background } }],
 };
 
+/** Add ?offline to the address to skip the basemap, e.g. on unreliable venue Wi-Fi. */
+const FORCE_OFFLINE = new URLSearchParams(window.location.search).has("offline");
+
 export async function loadBaseStyle(): Promise<{ style: StyleSpecification; online: boolean }> {
+  if (FORCE_OFFLINE) return { style: PLAIN_STYLE, online: false };
   try {
     const response = await fetch(BASEMAP_URL, { signal: AbortSignal.timeout(4000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

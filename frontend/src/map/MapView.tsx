@@ -24,20 +24,15 @@ setWorkerUrl(workerUrl);
 const ROADS = "roads";
 const RAIN = "rain";
 const SENSORS = "sensors";
+const FRAME = "study-area";
 const RISK: ExpressionSpecification = ["coalesce", ["feature-state", "risk"], 0];
 const SENSOR_RISK: ExpressionSpecification = ["get", "risk"];
 /** Rain at or above this (mm in the hour) is drawn at full strength. */
 export const RAIN_FULL_MM = 20;
 const RAIN_RGB = [60, 207, 224]; // the palette cyan
-/** Same breakpoint as the small-screen block in styles.css. */
-const SMALL_SCREEN = "(max-width: 1500px), (max-height: 860px)";
-
-/** Keeps the fitted city clear of the side panels, the top bar and the timeline. */
-function viewPadding(): { top: number; bottom: number; left: number; right: number } {
-  return window.matchMedia(SMALL_SCREEN).matches
-    ? { top: 64, bottom: 112, left: 288, right: 360 }
-    : { top: 76, bottom: 132, left: 316, right: 392 };
-}
+/** Space left around the study area. The map element itself sits between the
+ * rails and above the Sky strip (see .map in styles.css). */
+const VIEW_PADDING = 28;
 
 interface Props {
   meta: Meta;
@@ -62,29 +57,32 @@ function activeOnMap(actions: Action[], hour: number): Action[] {
   );
 }
 
-function markerElement(action: Action): HTMLElement {
+/** A small shape, drawn in CSS and shared with the legend. MapLibre positions
+ * the root element itself, so the shape is a child. The name shows on hover. */
+function shapeMarker(shape: "closure" | "pump" | "payout", title: string): HTMLElement {
   const element = document.createElement("div");
-  const closure = action.type === "close_underpass";
-  element.className = closure ? "marker closure" : "marker pump";
-  element.title = `${closure ? "Closed" : "Pump staged"}: ${action.label}`;
-  if (closure) {
-    element.textContent = "CLOSED";
-  } else {
-    // The diamond is drawn in CSS; a text label keeps it readable without colour.
-    element.innerHTML = '<span class="diamond"></span><span class="marker-text">PUMP</span>';
-  }
+  element.className = "marker";
+  element.title = title;
+  const glyph = document.createElement("span");
+  glyph.className = `glyph ${shape}`;
+  element.append(glyph);
   return element;
 }
 
-function payoutPin(business: string, amountAed: number): HTMLElement {
+function actionMarker(action: Action): HTMLElement {
+  return action.type === "close_underpass"
+    ? shapeMarker("closure", `Closed: ${action.label}`)
+    : shapeMarker("pump", `Pump staged: ${action.label}`);
+}
+
+/** District names for the plain offline map, which has no basemap labels. */
+function districtLabel(name: string): HTMLElement {
   const element = document.createElement("div");
-  // MapLibre positions this root element itself, so the pin is drawn by a child.
   element.className = "marker";
-  element.title = `Payout: ${business}, AED ${amountAed.toLocaleString("en-US")}`;
-  const pin = document.createElement("span");
-  pin.className = "payout-pin";
-  pin.textContent = "AED";
-  element.append(pin);
+  const label = document.createElement("span");
+  label.className = "district-label";
+  label.textContent = name;
+  element.append(label);
   return element;
 }
 
@@ -136,7 +134,35 @@ function addRainLayer(map: MapLibreMap, meta: Meta): void {
     id: RAIN,
     type: "raster",
     source: RAIN,
-    paint: { "raster-opacity": 0.4, "raster-resampling": "linear", "raster-fade-duration": 0 },
+    paint: { "raster-opacity": 0.32, "raster-resampling": "linear", "raster-fade-duration": 0 },
+  });
+}
+
+/** A dashed frame around the study area, so the edge of the rain haze reads as
+ * the edge of our data and not the edge of the storm. */
+function addStudyFrame(map: MapLibreMap, meta: Meta): void {
+  const [west, south, east, north] = meta.bbox;
+  map.addSource(FRAME, {
+    type: "geojson",
+    data: {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [[west, north], [east, north], [east, south], [west, south], [west, north]],
+      },
+    },
+  });
+  map.addLayer({
+    id: FRAME,
+    type: "line",
+    source: FRAME,
+    paint: {
+      "line-color": COLORS.sand,
+      "line-opacity": 0.35,
+      "line-width": 1,
+      "line-dasharray": [4, 4],
+    },
   });
 }
 
@@ -173,12 +199,12 @@ function addSensorLayer(map: MapLibreMap): void {
     type: "circle",
     source: SENSORS,
     paint: {
-      "circle-radius": ["match", SENSOR_RISK, 1, 5, 2, 7, 3],
+      "circle-radius": ["match", SENSOR_RISK, 1, 4, 2, 5.5, 2.5],
       "circle-color": [
         "match", SENSOR_RISK, 1, COLORS.amber, 2, COLORS.impassable, COLORS.background,
       ],
       "circle-stroke-color": COLORS.sand,
-      "circle-stroke-width": 1.5,
+      "circle-stroke-width": 1.25,
     },
   };
   map.addLayer(layer);
@@ -218,20 +244,28 @@ export function MapView({ meta, risk, rain, sensors, actions, payouts, hour }: P
           container: container.current,
           style: base.style,
           bounds: [west, south, east, north],
-          fitBoundsOptions: { padding: viewPadding() },
+          fitBoundsOptions: { padding: VIEW_PADDING },
           attributionControl: false,
         });
-        map.addControl(new NavigationControl({ showCompass: false }), "top-left");
+        map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
         map.addControl(new AttributionControl({ compact: true }), "bottom-left");
         // Refit when the window changes size, e.g. going full screen on the projector.
         map.on("resize", () => {
-          map?.fitBounds([west, south, east, north], { padding: viewPadding(), duration: 0 });
+          map?.fitBounds([west, south, east, north], { padding: VIEW_PADDING, duration: 0 });
         });
         map.on("load", () => {
           if (cancelled || !map) return;
           addRainLayer(map, meta);
+          addStudyFrame(map, meta);
           addRoadLayer(map, roads);
           addSensorLayer(map);
+          if (!base.online) {
+            for (const district of meta.districts) {
+              new Marker({ element: districtLabel(district.name) })
+                .setLngLat([district.lon, district.lat])
+                .addTo(map);
+            }
+          }
           mapRef.current = map;
           setReady(true);
         });
@@ -278,9 +312,9 @@ export function MapView({ meta, risk, rain, sensors, actions, payouts, hour }: P
     if (!ready || !map) return;
     const markers = activeOnMap(actions, hour).map((action) =>
       new Marker({
-        element: markerElement(action),
-        // Offset so a pump and a closure at the same underpass do not overlap.
-        offset: action.type === "stage_pump" ? [0, 16] : [0, -12],
+        element: actionMarker(action),
+        // Offset so a pump and a closure at the same underpass sit side by side.
+        offset: action.type === "stage_pump" ? [8, 0] : [-8, 0],
       })
         .setLngLat([action.lon, action.lat])
         .addTo(map),
@@ -296,7 +330,13 @@ export function MapView({ meta, risk, rain, sensors, actions, payouts, hour }: P
       const policy = policies.get(event.policy_id);
       if (!policy) return [];
       return [
-        new Marker({ element: payoutPin(policy.business, event.amount_aed), anchor: "bottom" })
+        new Marker({
+          element: shapeMarker(
+            "payout",
+            `Payout: ${policy.business}, AED ${event.amount_aed.toLocaleString("en-US")}`,
+          ),
+          anchor: "bottom",
+        })
           .setLngLat([policy.lon, policy.lat])
           .addTo(map),
       ];

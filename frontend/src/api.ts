@@ -20,6 +20,8 @@ export interface Meta {
   rain_cols: number;
   rain_block: number;
   forecast_leads: number;
+  /** Recorded area-mean rain (mm) for each hour of the day. */
+  rain_mean_mm: number[];
   segment_count: number;
   story: { zero_hour: number; start_hour: number; end_hour: number };
   thresholds: { caution_cm: number; impassable_cm: number; display_cap_cm: number };

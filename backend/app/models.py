@@ -39,6 +39,7 @@ class Meta(BaseModel):
     rain_cols: int
     rain_block: int  # each rain value is the mean of a block of this many cells
     forecast_leads: int
+    rain_mean_mm: list[float]  # recorded area-mean rain for each hour of the day
     segment_count: int
     story: StoryWindow
     thresholds: Thresholds

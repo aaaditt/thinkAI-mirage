@@ -35,12 +35,15 @@ export function About({ meta, onClose }: Props) {
         <p>
           A student prototype by Team Everglow (ThinkAI'26). It replays the Dubai storm of{" "}
           {meta.date} hour by hour and shows how a forecast could become street-level action. T–0
-          is {clockLabel(meta.story.zero_hour)} GST, the hour of heaviest recorded rain.
+          is {clockLabel(meta.story.zero_hour)} GST, the hour of heaviest rain in the historical data.
         </p>
 
         <h3>Real data</h3>
         <ul>
-          <li>Hourly rainfall for {meta.date}: Open-Meteo historical archive.</li>
+          <li>
+            Hourly rainfall for {meta.date}: Open-Meteo historical archive. This is a reanalysis, a
+            model-based reconstruction on cells 7 to 8 km wide, not rain-gauge or radar readings.
+          </li>
           <li>Ground elevation: Open-Meteo elevation API.</li>
           <li>Roads, tunnels and underpasses: OpenStreetMap, via Overpass.</li>
         </ul>
@@ -72,6 +75,18 @@ export function About({ meta, onClose }: Props) {
           </li>
           <li>Reanalysis rainfall understates the true peak of this storm.</li>
           <li>Underpass dips are assumed; the elevation data cannot see them.</li>
+          <li>
+            The “truth” the simulated sensors read is a second run of the same model, so the
+            sensor correction shows the mechanism, not real forecast skill.
+          </li>
+          <li>
+            The confidence score on each proposal is a fixed function of lead time, not a
+            calibrated probability.
+          </li>
+          <li>
+            Without an Azure OpenAI key the agent is a fixed set of rules, not a language model.
+            The language-model path has not been run against a live key.
+          </li>
           <li>
             We have no access to NCM radar, RTA cameras or NCEMA systems. They are modelled behind
             interfaces with simulated stand-ins.
