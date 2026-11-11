@@ -16,3 +16,7 @@ dist/
 
 # browser automation scratch
 .playwright-mcp/
+
+# vercel (project link and local token)
+.vercel
+.env.local

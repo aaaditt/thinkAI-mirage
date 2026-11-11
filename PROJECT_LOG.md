@@ -3,7 +3,7 @@
 A plain, step-by-step record of what was done, in order, and where the project stands.
 Newest phase is at the bottom. Updated at the end of every phase.
 
-**Where we are right now:** All seven phases are finished, tested, and pushed to GitHub. The screen was redesigned after Phase 6. The demo starts with one command (`python start.py`) and runs with no internet. What is left is listed under "Still open" at the end of Phase 7.
+**Where we are right now:** All seven phases are finished, tested, and pushed to GitHub. The screen was redesigned after Phase 6. The demo starts with one command (`python start.py`) and runs with no internet. What is left is listed under "Still open" at the end of Phase 7. A hosted copy runs at https://thinkai-mirage.vercel.app (see "Hosted demo on Vercel" at the bottom).
 
 **Repository:** https://github.com/aaaditt/thinkAI-mirage (branch `main`). Every version is committed and pushed there.
 
@@ -18,6 +18,7 @@ Newest phase is at the bottom. Updated at the end of every phase.
 | 6 | Polish for the demo | Done |
 | 6b | Redesign of the screen | Done |
 | 7 | Make it safe to present | Done |
+| 8 | Hosted demo on Vercel | Done |
 
 ---
 
@@ -554,3 +555,26 @@ During two test runs Demo mode stopped early, and in one of them two approvals w
 
 ### Screenshots
 On this laptop only, in `data/previews/`: `app_final_T-6h_1920.png`, `app_final_demo_T-2h_1920.png`, `app_final_T-0_1920.png`, `app_final_T-0_1366.png`, `app_final_about_1366.png`, `app_offline_T-0_1920.png`.
+
+---
+
+## Phase 8 — Hosted demo on Vercel
+
+**Live link: https://thinkai-mirage.vercel.app**
+
+### What was done, in order
+1. **Entry point and config.** `api/index.py` exposes the FastAPI app as one Vercel function. `vercel.json` builds the frontend as static files and sends `/api/*` to the function. A root `requirements.txt` lists only what the function needs (numpy, fastapi, pydantic).
+2. **The data cache is uploaded with the deployment.** `data/` is not in git, so `.vercelignore` is set to upload it anyway (about 9 MB).
+3. **The replay cache was made portable.** It used to be tied to each data file's modified time, which changes when files are copied to a server, so the hosted copy would have rebuilt the replay on every cold start and then failed to save it to a read-only disk. It is now tied to the files' contents, and a failed save is logged and ignored.
+4. **Deployed and checked.** The site, `/api/meta`, `/api/replay/16` and `/api/roads` all answered. A full Demo mode run on the live site finished at T+2 with 52 auto-approvals, AED 380,000 of mock payouts and no failed requests. It took 83 seconds at 2x, against about 60 on the laptop.
+5. **README rewritten** with the live link, two screenshots (in `docs/`), a two-minute walkthrough, how it works, the API, and a section on the hosted copy.
+
+### Limits of the hosted copy
+- **Everyone shares one action queue.** There are no sessions. Two visitors at once see and change the same proposals.
+- **The queue can reset by itself.** It lives in the function's memory. When Vercel stops the function after a quiet period, the next visit starts clean. Under load Vercel may run several copies, each with its own queue. Only single-visitor use was tested.
+- **Slower than local, and needs internet.** For the judged presentation, run it locally with `python start.py`.
+- **The rule-based planner only.** No Azure keys are set on Vercel.
+- **Redeploying is manual:** `vercel deploy --prod` from a machine that has the `data/` folder.
+
+### Tests
+124 backend tests, all passing after the cache change.

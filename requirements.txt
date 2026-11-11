@@ -1,0 +1,4 @@
+# Used by the Vercel deployment only. For local work use backend/requirements.txt.
+numpy>=1.26
+fastapi>=0.115
+pydantic>=2.7

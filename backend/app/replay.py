@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import asdict, dataclass, fields
 from typing import Any
 
@@ -148,8 +149,10 @@ def cache_signature() -> str:
         for name, value in vars(config).items()
         if name.isupper() and isinstance(value, (int, float, str))
     }
+    # Hash the contents, not the modified time, so a cache built on one machine
+    # is still valid after the files are copied to another (e.g. a deployment).
     inputs = [
-        (path.name, path.stat().st_size, path.stat().st_mtime_ns)
+        (path.name, hashlib.sha256(path.read_bytes()).hexdigest())
         for path in (config.RAIN_TRUTH_PATH, config.ELEVATION_PATH, config.ROADS_PATH)
     ]
     blob = json.dumps([settings, inputs], sort_keys=True)
@@ -188,5 +191,8 @@ def load_world() -> World:
     timeline = load_cached_timeline(signature)
     if timeline is None:
         timeline = build_timeline(scenario)
-        np.savez_compressed(config.TIMELINE_PATH, signature=signature, **asdict(timeline))
+        try:
+            np.savez_compressed(config.TIMELINE_PATH, signature=signature, **asdict(timeline))
+        except OSError as error:  # a read-only disk: run without the cache
+            logging.getLogger(__name__).warning("timeline cache not written: %s", error)
     return World(scenario=scenario, timeline=timeline)
