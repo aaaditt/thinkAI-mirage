@@ -574,7 +574,7 @@ On this laptop only, in `data/previews/`: `app_final_T-6h_1920.png`, `app_final_
 - **The queue can reset by itself.** It lives in the function's memory. When Vercel stops the function after a quiet period, the next visit starts clean. Under load Vercel may run several copies, each with its own queue. Only single-visitor use was tested.
 - **Slower than local, and needs internet.** For the judged presentation, run it locally with `python start.py`.
 - **The rule-based planner only.** No Azure keys are set on Vercel.
-- **Redeploying is manual:** `vercel deploy --prod` from a machine that has the `data/` folder.
+- **Redeploying is manual:** `vercel deploy --prod` from a machine that has the `data/` folder. Vercel had connected the GitHub repository by itself, and the first push started a build with no data, which would have broken the live site. The automatic GitHub deploy was disconnected for this project and the site redeployed from the laptop. A first visit after a quiet period takes about 5 seconds to answer.
 
 ### Tests
 124 backend tests, all passing after the cache change.
